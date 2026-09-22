@@ -1,0 +1,234 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-bangla: var(--font-bangla);
+
+  /* Playful pastel surfaces. Colour sits in the surface and the small eyebrow
+     label; body copy stays near-black, so every pairing clears WCAG AA
+     (text >= 14.9:1 on tint, eyebrow >= 5.3:1). */
+  --color-tint-saffron: var(--tint-saffron);
+  --color-tint-lilac: var(--tint-lilac);
+  --color-tint-mint: var(--tint-mint);
+  --color-tint-rose: var(--tint-rose);
+  --color-tint-sky: var(--tint-sky);
+  --color-tint-peach: var(--tint-peach);
+
+  --color-ink-saffron: var(--ink-saffron);
+  --color-ink-lilac: var(--ink-lilac);
+  --color-ink-mint: var(--ink-mint);
+  --color-ink-rose: var(--ink-rose);
+  --color-ink-sky: var(--ink-sky);
+  --color-ink-peach: var(--ink-peach);
+
+  --radius-panel: 1.75rem;
+}
+
+:root {
+  --app-bg: #fffcf5;
+  --app-fg: #1a1523;
+  --tint-saffron: #fff1cc;
+  --tint-lilac: #efe7ff;
+  --tint-mint: #ddf5e6;
+  --tint-rose: #ffe4ee;
+  --tint-sky: #deeeff;
+  --tint-peach: #ffe6dc;
+
+  --ink-saffron: #8a5a00;
+  --ink-lilac: #5b34c7;
+  --ink-mint: #136f43;
+  --ink-rose: #a32c60;
+  --ink-sky: #1362a8;
+  --ink-peach: #9e3f16;
+}
+
+/* Dark theme is opt-in through shadcn's `.dark` class, never the media query:
+   mixing the two is what made light text sit on dark tints. */
+.dark {
+  --tint-saffron: #2e2410;
+  --tint-lilac: #241c3a;
+  --tint-mint: #14291f;
+  --tint-rose: #2e1822;
+  --tint-sky: #14212e;
+  --tint-peach: #2d1b13;
+
+  --ink-saffron: #f0c761;
+  --ink-lilac: #c3adff;
+  --ink-mint: #7fdcac;
+  --ink-rose: #ff9dc0;
+  --ink-sky: #8ac4f5;
+  --ink-peach: #ffab86;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer base {
+  body {
+    background: var(--app-bg);
+    color: var(--app-fg);
+  }
+  .dark body {
+    background: #14121a;
+    color: #f4f1f6;
+  }
+}
+
+@layer components {
+  /* Kantha edging: a running stitch set in from the panel edge, the way a
+     hand-quilted border sits inside the hem. Purely decorative, so it never
+     intercepts pointer events. */
+  .stitched {
+    position: relative;
+  }
+  .stitched::after {
+    content: "";
+    position: absolute;
+    inset: 0.75rem;
+    border: 2px dashed color-mix(in oklab, var(--app-fg) 28%, transparent);
+    border-radius: calc(var(--radius-panel) - 0.75rem);
+    pointer-events: none;
+  }
+  .dark .stitched::after {
+    border-color: color-mix(in oklab, #f4f1f6 30%, transparent);
+  }
+
+  /* A stitched underline for inline emphasis. */
+  .stitch-underline {
+    background-image: repeating-linear-gradient(
+      to right,
+      currentColor 0 10px,
+      transparent 10px 19px
+    );
+    background-position: 0 100%;
+    background-repeat: repeat-x;
+    background-size: 100% 2px;
+    padding-bottom: 3px;
+  }
+}

@@ -34,6 +34,9 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "UNAUTHENTICATED_USER": None,
+    # Defence in depth: the gateway rate-limits too, but the service must not
+    # rely on being unreachable directly.
+    "DEFAULT_THROTTLE_RATES": {"auth": env_str("AUTH_THROTTLE_RATE", "30/min")},
 }
 
 MIDDLEWARE = [

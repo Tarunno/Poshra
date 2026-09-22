@@ -70,6 +70,9 @@ services:
       KONG_PLUGINS: bundled,poshra-leaky-bucket
       # Shared memory for bucket state and per-key locks, visible to all workers.
       KONG_NGINX_HTTP_LUA_SHARED_DICT: poshra_leaky_bucket 10m; lua_shared_dict poshra_leaky_bucket_locks 1m
+    extra_hosts:
+      # Lets Kong reach the Next.js dev server running on the host.
+      - "host.docker.internal:host-gateway"
     ulimits:
       # Each proxied request uses file descriptors; the default 1024 is too low.
       nofile: { soft: 65536, hard: 65536 }

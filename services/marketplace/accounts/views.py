@@ -1,4 +1,4 @@
-"""Auth endpoints.
+"""Auth endpoints (DRF class-based views).
 
 Tokens are delivered as cookies, never in the response body:
 
@@ -9,6 +9,9 @@ Tokens are delivered as cookies, never in the response body:
 * a readable CSRF cookie is echoed back in a header on state-changing calls
   (double-submit), which proves the request came from our own page rather than
   from another site that merely has the browser send cookies.
+
+Rate limiting also lives at the gateway; the throttles here are defence in
+depth, so the service stays protected if it is ever reached directly.
 """
 
 from __future__ import annotations
@@ -16,27 +19,22 @@ from __future__ import annotations
 import secrets
 
 from django.conf import settings
-from django.http import HttpRequest, HttpResponse, JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET, require_POST
+from jwt import PyJWTError
+from rest_framework import status
+from rest_framework.request import Request
+from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.views import APIView
 
 from accounts import services
-from accounts.models import Role, User
-from accounts.tokens import public_jwk
+from accounts.models import User
+from accounts.serializers import LoginSerializer, RegisterSerializer, UserSerializer
+from accounts.tokens import decode_access_token, public_jwk
 
 CSRF_HEADER = "X-CSRF-Token"
 
 
-def _json_body(request: HttpRequest) -> dict:
-    import json
-
-    try:
-        return json.loads(request.body or b"{}")
-    except ValueError:
-        return {}
-
-
-def _set_auth_cookies(response: HttpResponse, pair: services.TokenPair) -> None:
+def _set_auth_cookies(response: Response, pair: services.TokenPair) -> None:
     response.set_cookie(
         settings.ACCESS_COOKIE_NAME,
         pair.access.value,
@@ -66,104 +64,133 @@ def _set_auth_cookies(response: HttpResponse, pair: services.TokenPair) -> None:
     )
 
 
-def _clear_auth_cookies(response: HttpResponse) -> None:
+def _clear_auth_cookies(response: Response) -> None:
     response.delete_cookie(settings.ACCESS_COOKIE_NAME, path="/")
     response.delete_cookie(settings.REFRESH_COOKIE_NAME, path=settings.REFRESH_COOKIE_PATH)
     response.delete_cookie(settings.CSRF_COOKIE_NAME_AUTH, path="/")
 
 
-def _user_json(user: User) -> dict:
-    return {
-        "id": str(user.id),
-        "email": user.email,
-        "full_name": user.full_name,
-        "role": user.role,
-    }
-
-
-def _csrf_ok(request: HttpRequest) -> bool:
+def _csrf_ok(request: Request) -> bool:
     cookie = request.COOKIES.get(settings.CSRF_COOKIE_NAME_AUTH)
     header = request.headers.get(CSRF_HEADER)
     return bool(cookie) and bool(header) and secrets.compare_digest(cookie, header)
 
 
-@csrf_exempt
-@require_POST
-def register(request: HttpRequest) -> JsonResponse:
-    body = _json_body(request)
-    role = body.get("role", Role.BUYER)
-    if role not in (Role.BUYER, Role.ARTISAN):
-        return JsonResponse({"detail": "role must be buyer or artisan"}, status=400)
-    if not body.get("email") or not body.get("password"):
-        return JsonResponse({"detail": "email and password are required"}, status=400)
-
-    try:
-        user = services.register(
-            email=body["email"],
-            password=body["password"],
-            full_name=body.get("full_name", ""),
-            role=role,
-        )
-    except services.AuthError as exc:
-        return JsonResponse({"detail": str(exc)}, status=409)
-
-    return JsonResponse(_user_json(user), status=201)
+class AuthThrottle(ScopedRateThrottle):
+    scope = "auth"
 
 
-@csrf_exempt
-@require_POST
-def login(request: HttpRequest) -> JsonResponse:
-    body = _json_body(request)
-    try:
-        pair = services.login(email=body.get("email", ""), password=body.get("password", ""))
-    except services.AuthError as exc:
-        return JsonResponse({"detail": str(exc)}, status=401)
+class RegisterView(APIView):
+    throttle_classes = [AuthThrottle]
+    throttle_scope = "auth"
 
-    response = JsonResponse(_user_json(pair.refresh.user))
-    _set_auth_cookies(response, pair)
-    return response
+    def post(self, request: Request) -> Response:
+        serializer = RegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            user = services.register(
+                email=data["email"],
+                password=data["password"],
+                full_name=data.get("full_name", ""),
+                role=data["role"],
+            )
+        except services.AuthError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
-@csrf_exempt
-@require_POST
-def refresh(request: HttpRequest) -> JsonResponse:
-    if not _csrf_ok(request):
-        return JsonResponse({"detail": "CSRF check failed"}, status=403)
+class LoginView(APIView):
+    throttle_classes = [AuthThrottle]
+    throttle_scope = "auth"
 
-    token = request.COOKIES.get(settings.REFRESH_COOKIE_NAME)
-    if not token:
-        return JsonResponse({"detail": "No refresh token"}, status=401)
+    def post(self, request: Request) -> Response:
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-    try:
-        pair = services.refresh(token)
-    except services.AuthError as exc:
-        response = JsonResponse({"detail": str(exc)}, status=401)
+        try:
+            pair = services.login(**serializer.validated_data)
+        except services.AuthError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
+
+        response = Response(UserSerializer(pair.refresh.user).data)
+        _set_auth_cookies(response, pair)
+        return response
+
+
+class RefreshView(APIView):
+    throttle_classes = [AuthThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request: Request) -> Response:
+        if not _csrf_ok(request):
+            return Response({"detail": "CSRF check failed"}, status=status.HTTP_403_FORBIDDEN)
+
+        token = request.COOKIES.get(settings.REFRESH_COOKIE_NAME)
+        if not token:
+            return Response({"detail": "No refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        try:
+            pair = services.refresh(token)
+        except services.AuthError as exc:
+            response = Response({"detail": str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
+            _clear_auth_cookies(response)
+            return response
+
+        response = Response(UserSerializer(pair.refresh.user).data)
+        _set_auth_cookies(response, pair)
+        return response
+
+
+class LogoutView(APIView):
+    def post(self, request: Request) -> Response:
+        if not _csrf_ok(request):
+            return Response({"detail": "CSRF check failed"}, status=status.HTTP_403_FORBIDDEN)
+
+        token = request.COOKIES.get(settings.REFRESH_COOKIE_NAME)
+        if token:
+            services.logout(token)
+
+        response = Response({"detail": "Signed out"})
         _clear_auth_cookies(response)
         return response
 
-    response = JsonResponse(_user_json(pair.refresh.user))
-    _set_auth_cookies(response, pair)
-    return response
+
+class MeView(APIView):
+    """The current user.
+
+    Identity comes from the trusted ``X-User-Id`` header that the gateway
+    injects after verifying the token. Until that plugin exists, fall back to
+    verifying the access cookie here.
+    """
+
+    def get(self, request: Request) -> Response:
+        user_id = request.headers.get("X-User-Id")
+        if not user_id:
+            token = request.COOKIES.get(settings.ACCESS_COOKIE_NAME)
+            if not token:
+                return Response(
+                    {"detail": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED
+                )
+            try:
+                user_id = decode_access_token(token)["sub"]
+            except PyJWTError:
+                return Response(
+                    {"detail": "Invalid or expired token"}, status=status.HTTP_401_UNAUTHORIZED
+                )
+
+        user = User.objects.filter(id=user_id, is_active=True).first()
+        if user is None:
+            return Response({"detail": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(UserSerializer(user).data)
 
 
-@csrf_exempt
-@require_POST
-def logout(request: HttpRequest) -> JsonResponse:
-    if not _csrf_ok(request):
-        return JsonResponse({"detail": "CSRF check failed"}, status=403)
-
-    token = request.COOKIES.get(settings.REFRESH_COOKIE_NAME)
-    if token:
-        services.logout(token)
-
-    response = JsonResponse({"detail": "Signed out"})
-    _clear_auth_cookies(response)
-    return response
-
-
-@require_GET
-def jwks(request: HttpRequest) -> JsonResponse:
+class JWKSView(APIView):
     """Public keys, so verifiers can check signatures without shared secrets."""
-    response = JsonResponse({"keys": [public_jwk()]})
-    response["Cache-Control"] = "public, max-age=300"
-    return response
+
+    def get(self, request: Request) -> Response:
+        response = Response({"keys": [public_jwk()]})
+        response["Cache-Control"] = "public, max-age=300"
+        return response

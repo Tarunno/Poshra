@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Poshra: a nagordola (fair wheel). Reduced for small sizes: the legs and
+       spokes disappear below ~24px, so only the wheel, seats and hub remain. -->
+  <rect width="32" height="32" rx="9" fill="#fffcf5"/>
+  <circle cx="16" cy="16" r="10.6" fill="#ffe9b8" stroke="#1a1523" stroke-width="2"/>
+  <g stroke="#1a1523" stroke-width="1.5">
+    <circle cx="23.5" cy="8.5" r="2.9" fill="#ffc9dc"/>
+    <circle cx="23.5" cy="23.5" r="2.9" fill="#cdeedd"/>
+    <circle cx="8.5" cy="23.5" r="2.9" fill="#e4d7ff"/>
+    <circle cx="8.5" cy="8.5" r="2.9" fill="#cfe6ff"/>
+    <circle cx="16" cy="16" r="2.4" fill="#ffd9c6"/>
+  </g>
+</svg>

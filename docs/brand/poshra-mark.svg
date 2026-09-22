@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="96" height="96">
+  <!-- Poshra: a nagordola, the hand-cranked wooden wheel of a Bengali village fair. -->
+  <g stroke="#1a1523" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M16 14 L9 27.4 M16 14 L23 27.4" stroke-width="1.5"/>
+    <path d="M5.4 27.4 H26.6" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.7"/>
+    <circle cx="16" cy="14" r="9.8" fill="#ffe9b8" stroke-width="1.5"/>
+    <path d="M16 14 L22.9 20.9 M16 14 L9.1 20.9 M16 14 L22.9 7.1 M16 14 L9.1 7.1" stroke-width="1.2"/>
+  </g>
+  <g stroke="#1a1523" stroke-width="1.35">
+    <circle cx="22.9" cy="7.1" r="2.7" fill="#ffc9dc"/>
+    <circle cx="22.9" cy="20.9" r="2.7" fill="#cdeedd"/>
+    <circle cx="9.1" cy="20.9" r="2.7" fill="#e4d7ff"/>
+    <circle cx="9.1" cy="7.1" r="2.7" fill="#cfe6ff"/>
+    <circle cx="16" cy="14" r="2" fill="#ffd9c6"/>
+  </g>
+</svg>

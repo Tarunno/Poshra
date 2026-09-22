@@ -3,9 +3,10 @@ from django.urls import path
 from accounts import views
 
 urlpatterns = [
-    path("auth/register", views.register, name="auth-register"),
-    path("auth/login", views.login, name="auth-login"),
-    path("auth/refresh", views.refresh, name="auth-refresh"),
-    path("auth/logout", views.logout, name="auth-logout"),
-    path("auth/jwks.json", views.jwks, name="auth-jwks"),
+    path("auth/register", views.RegisterView.as_view(), name="auth-register"),
+    path("auth/login", views.LoginView.as_view(), name="auth-login"),
+    path("auth/refresh", views.RefreshView.as_view(), name="auth-refresh"),
+    path("auth/logout", views.LogoutView.as_view(), name="auth-logout"),
+    path("auth/me", views.MeView.as_view(), name="auth-me"),
+    path("auth/jwks.json", views.JWKSView.as_view(), name="auth-jwks"),
 ]

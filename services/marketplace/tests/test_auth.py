@@ -244,3 +244,24 @@ def test_service_layer_login_returns_usable_pair(user):
     pair = services.login(user.email, PASSWORD)
     assert decode_access_token(pair.access.value)["sub"] == str(user.id)
     assert pair.refresh.is_usable
+
+
+# --- current user -----------------------------------------------------------
+
+
+def test_me_returns_the_logged_in_user(client, user):
+    login(client)
+    body = client.get("/auth/me").json()
+    assert body["email"] == user.email
+    assert body["role"] == Role.ARTISAN
+
+
+def test_me_without_a_session_is_401(client):
+    assert client.get("/auth/me").status_code == 401
+
+
+def test_me_prefers_the_gateway_identity_header(client, user):
+    other = User.objects.create_user(email="buyer@poshra.test", password=PASSWORD)
+    login(client)  # cookie belongs to `user`
+    body = client.get("/auth/me", HTTP_X_USER_ID=str(other.id)).json()
+    assert body["email"] == other.email
