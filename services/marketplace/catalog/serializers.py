@@ -6,7 +6,15 @@ from catalog.models import ArtisanProfile, Craft, Product, ProductImage
 class CraftSerializer(serializers.ModelSerializer):
     class Meta:
         model = Craft
-        fields = ("slug", "name", "name_bn", "summary", "home_division", "home_district")
+        fields = (
+            "slug",
+            "name",
+            "name_bn",
+            "summary",
+            "description",
+            "home_division",
+            "home_district",
+        )
 
 
 class ArtisanSummarySerializer(serializers.ModelSerializer):

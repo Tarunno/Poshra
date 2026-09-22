@@ -15,6 +15,9 @@ export function SiteHeader({ user }: { user: User | null }) {
         </Link>
 
         <nav className="flex items-center gap-2">
+          <Button asChild variant="ghost" size="sm" className="rounded-full">
+            <Link href="/shop">Shop</Link>
+          </Button>
           {user ? (
             <>
               {user.role === "artisan" && (
