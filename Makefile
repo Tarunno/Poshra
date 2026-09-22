@@ -23,5 +23,11 @@ ps: ## Show service status
 logs: ## Follow logs (e.g. make logs s=postgres)
 	$(COMPOSE) logs -f $(s)
 
+build: ## Build service images
+	$(COMPOSE) build
+
+migrate: ## Apply Django migrations for marketplace (one-off container)
+	$(COMPOSE) run --rm marketplace python manage.py migrate
+
 psql: ## Open psql as a service role (e.g. make psql db=marketplace)
 	$(COMPOSE) exec postgres psql -U $(or $(db),postgres) -d $(or $(db),postgres)

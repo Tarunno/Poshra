@@ -24,5 +24,32 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  marketplace:
+    build:
+      context: ../../services/marketplace
+    image: poshra/marketplace:dev
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set in .env}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,marketplace
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: marketplace
+      DB_USER: marketplace
+      DB_PASSWORD: ${MARKETPLACE_DB_PASSWORD:?set in .env}
+    ports:
+      - "127.0.0.1:${MARKETPLACE_HOST_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Liveness-style check; the slim image has no curl, so use Python.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
 volumes:
   postgres-data:
