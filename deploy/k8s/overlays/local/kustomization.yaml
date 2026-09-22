@@ -9,6 +9,6 @@ resources:
 #   kustomize edit set image ghcr.io/tarunno/poshra/marketplace=...:<sha>
 images:
   - name: ghcr.io/tarunno/poshra/marketplace
-    newTag: 4e293d1b8a5cc38e3bd26b83d2a4e9d6c1190bfa
+    newTag: 2cc2d09838ea01fee6ccdd04bc50fc09f7220957
   - name: ghcr.io/tarunno/poshra/kong
-    newTag: 4e293d1b8a5cc38e3bd26b83d2a4e9d6c1190bfa
+    newTag: 2cc2d09838ea01fee6ccdd04bc50fc09f7220957
