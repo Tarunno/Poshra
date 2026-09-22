@@ -1,0 +1,36 @@
+# Kong declarative configuration (DB-less mode).
+# Validate: make kong-validate   Apply without restart: make kong-reload
+_format_version: "3.0"
+
+services:
+  - name: marketplace
+    url: http://marketplace:8000
+    connect_timeout: 2000
+    read_timeout: 5000
+    write_timeout: 5000
+    # Never replay requests: POSTs (login, orders) are not safe to send twice.
+    retries: 0
+    routes:
+      - name: marketplace-api
+        paths:
+          - /api/marketplace
+        strip_path: true
+        protocols: [http, https]
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          limit_by: ip
+          # Counters live in each Kong node's memory. Switches to Redis when Kong
+          # runs more than one replica, so limits are shared.
+          policy: local
+          hide_client_headers: false
+
+plugins:
+  # Every request gets an ID that is logged by Kong, passed upstream and returned
+  # to the client, so one request can be followed across services and logs.
+  - name: correlation-id
+    config:
+      header_name: X-Request-ID
+      generator: uuid
+      echo_downstream: true

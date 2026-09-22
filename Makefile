@@ -29,5 +29,11 @@ build: ## Build service images
 migrate: ## Apply Django migrations for marketplace (one-off container)
 	$(COMPOSE) run --rm marketplace python manage.py migrate
 
+kong-validate: ## Validate gateway/kong/kong.yaml
+	$(COMPOSE) run --rm --no-deps kong kong config parse /kong/kong.yaml
+
+kong-reload: ## Apply gateway/kong/kong.yaml to the running Kong without a restart
+	curl -sf -X POST http://127.0.0.1:$${KONG_ADMIN_HOST_PORT:-8001}/config -F config=@gateway/kong/kong.yaml > /dev/null && echo "kong config reloaded"
+
 psql: ## Open psql as a service role (e.g. make psql db=marketplace)
 	$(COMPOSE) exec postgres psql -U $(or $(db),postgres) -d $(or $(db),postgres)
