@@ -101,48 +101,31 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
-    name: deploy to local k8s
+  bump-manifests:
+    name: pin image tags in git
     needs: build
     if: github.ref == 'refs/heads/main'
-    # Self-hosted runner on the LAN: GitHub cannot reach 192.168.110.x, so the
-    # runner polls GitHub outbound instead.
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Pin image tags to this commit
+      # Argo CD deploys what git says, so "deploying" means committing the new
+      # immutable tag. The cluster pulls the change; CI never touches it.
+      - name: Set image tags to this commit
         working-directory: deploy/k8s/overlays/local
         run: |
           sed -i "s|newTag: .*|newTag: ${{ github.sha }}|" kustomization.yaml
-          grep -A1 'name: ' kustomization.yaml
+          cat kustomization.yaml
 
-      - name: Run database migrations (before the new code serves traffic)
+      - name: Commit if changed
         run: |
           set -euo pipefail
-          IMAGE=${{ env.IMAGE_PREFIX }}/marketplace:${{ github.sha }}
-          JOB=$(sed "s|IMAGE_PLACEHOLDER|$IMAGE|" deploy/k8s/jobs/migrate.yaml \
-                | kubectl create -f - -o name)
-          kubectl -n poshra wait --for=condition=complete --timeout=300s "$JOB" \
-            || { kubectl -n poshra logs "$JOB" --tail=50; exit 1; }
-          kubectl -n poshra logs "$JOB" --tail=20
-
-      - name: Apply manifests
-        run: kubectl kustomize deploy/k8s/overlays/local | kubectl apply -f -
-
-      - name: Wait for rollout
-        run: |
-          kubectl -n poshra rollout status deploy/marketplace --timeout=300s
-          kubectl -n poshra rollout status deploy/kong --timeout=180s
-
-      - name: Smoke test through the gateway
-        run: |
-          set -euo pipefail
-          IP=$(kubectl -n poshra get svc kong-proxy -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          echo "gateway: $IP"
-          curl -fsS --retry 10 --retry-delay 3 --retry-all-errors \
-            "http://$IP/api/marketplace/readyz" | tee /dev/stderr | grep -q '"status": "ready"'
-
-      - name: Report
-        if: always()
-        run: kubectl -n poshra get pods -o wide
+          if git diff --quiet; then
+            echo "image tags already current"; exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(deploy): pin images to ${{ github.sha }} [skip ci]"
+          git push

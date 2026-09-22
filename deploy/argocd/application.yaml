@@ -1,0 +1,32 @@
+# The single Argo CD Application that owns everything in the poshra namespace.
+# Argo CD polls the repo and reconciles the cluster to match git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: poshra
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Tarunno/Poshra.git
+    targetRevision: main
+    path: deploy/k8s/overlays/local
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: poshra
+  syncPolicy:
+    automated:
+      prune: true      # delete resources removed from git
+      selfHeal: true   # undo manual kubectl changes (git is the source of truth)
+    syncOptions:
+      - CreateNamespace=false   # the namespace is part of the manifests
+      - PrunePropagationPolicy=foreground
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 3m
+  # Secrets are created out-of-band (make k8s-secrets) and are not in git,
+  # so Argo CD must not try to manage or prune them.
+  ignoreDifferences: []

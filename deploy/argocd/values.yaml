@@ -1,0 +1,40 @@
+# Argo CD sized for a small 3-node home cluster.
+# Optional components are disabled: Poshra uses a single local Application and
+# logs in with the built-in admin account.
+global:
+  domain: argocd.poshra.local
+
+dex:
+  enabled: false          # no SSO
+notifications:
+  enabled: false          # no Slack/email hooks
+applicationSet:
+  enabled: false          # no generated Applications
+
+configs:
+  params:
+    # Terminate TLS at the LoadBalancer instead of inside the pod, so the UI is
+    # reachable over plain HTTP on the LAN. Fine for a home lab, not for the internet.
+    server.insecure: true
+
+controller:
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1Gi }
+
+repoServer:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+
+server:
+  service:
+    type: LoadBalancer   # MetalLB gives it a LAN IP
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+redis:
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { memory: 192Mi }
