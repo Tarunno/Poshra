@@ -264,3 +264,83 @@ def test_product_queries_stay_constant_as_the_catalog_grows(
     # would fetch its artisan and craft separately (the N+1 problem).
     with django_assert_max_num_queries(6):
         client.get(PRODUCTS)
+
+
+# --- facets and sorting ------------------------------------------------------
+
+
+def test_facets_count_each_craft(client, artisan, craft, product):
+    jute = Craft.objects.create(slug="jute", name="Jute craft")
+    Product.objects.create(
+        artisan=artisan,
+        craft=jute,
+        title="Jute market bag",
+        price_minor=95000,
+        stock=5,
+        status=ProductStatus.PUBLISHED,
+    )
+
+    body = client.get(f"{PRODUCTS}/facets").json()
+    counts = {row["slug"]: row["count"] for row in body["crafts"]}
+    assert counts == {"jamdani": 1, "jute": 1}
+    assert body["total"] == 2
+    assert body["price"] == {"min": 95000, "max": 4_200_000}
+
+
+def test_a_selected_craft_does_not_zero_the_other_craft_counts(client, artisan, craft, product):
+    jute = Craft.objects.create(slug="jute", name="Jute craft")
+    Product.objects.create(
+        artisan=artisan,
+        craft=jute,
+        title="Jute market bag",
+        price_minor=95000,
+        stock=5,
+        status=ProductStatus.PUBLISHED,
+    )
+
+    body = client.get(f"{PRODUCTS}/facets?craft=jamdani").json()
+    counts = {row["slug"]: row["count"] for row in body["crafts"]}
+    # Each craft is counted with the craft filter removed, so the sidebar still
+    # tells the visitor what switching would give them.
+    assert counts == {"jamdani": 1, "jute": 1}
+    # Totals, however, reflect the active filter.
+    assert body["total"] == 1
+
+
+def test_facets_respect_other_active_filters(client, artisan, craft, product):
+    jute = Craft.objects.create(slug="jute", name="Jute craft")
+    Product.objects.create(
+        artisan=artisan,
+        craft=jute,
+        title="Jute market bag",
+        price_minor=95000,
+        stock=0,
+        status=ProductStatus.PUBLISHED,
+    )
+
+    body = client.get(f"{PRODUCTS}/facets?in_stock=true").json()
+    counts = {row["slug"]: row["count"] for row in body["crafts"]}
+    assert counts == {"jamdani": 1}
+
+
+def test_sort_by_price(client, artisan, craft, product):
+    Product.objects.create(
+        artisan=artisan,
+        craft=craft,
+        title="Cheaper scarf",
+        price_minor=650000,
+        stock=2,
+        status=ProductStatus.PUBLISHED,
+    )
+
+    ascending = client.get(f"{PRODUCTS}?sort=price_asc").json()["results"]
+    assert [item["price_minor"] for item in ascending] == [650000, 4_200_000]
+
+    descending = client.get(f"{PRODUCTS}?sort=price_desc").json()["results"]
+    assert [item["price_minor"] for item in descending] == [4_200_000, 650000]
+
+
+def test_unknown_sort_values_are_ignored(client, product):
+    # A caller must not be able to order by an arbitrary column.
+    response = client.get(f"{PRODUCTS}?sort=price_minor;DROP")
+    assert response.status_code == 200

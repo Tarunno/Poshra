@@ -11,20 +11,38 @@ services:
     # Never replay requests: POSTs (login, orders) are not safe to send twice.
     retries: 0
     routes:
+      # Public edge: browsers and external agents. Rate limited per client.
       - name: marketplace-api
         paths:
           - /api/marketplace
         strip_path: true
         protocols: [http, https]
-    plugins:
-      # Leaky bucket (GCRA): a steady 5 req/s per client IP with bursts of up
-      # to 10. Unlike a fixed window, a client cannot double its rate at a
-      # window boundary. Custom plugin: gateway/kong/plugins/poshra-leaky-bucket
-      - name: poshra-leaky-bucket
-        config:
-          rate: 5
-          burst: 10
-          limit_by: ip
+        plugins:
+          # Leaky bucket (GCRA): a steady 5 req/s per client IP with bursts of
+          # up to 10. Unlike a fixed window, a client cannot double its rate at
+          # a window boundary. Plugin: gateway/kong/plugins/poshra-leaky-bucket
+          - name: poshra-leaky-bucket
+            config:
+              rate: 5
+              burst: 10
+              limit_by: ip
+
+      # Internal path for server-side rendering. One page render makes several
+      # API calls, and every pod shares one source address, so a per-client
+      # limit would throttle the storefront itself. Still passes through the
+      # gateway for auth, tracing and one place to change policy; reachable
+      # only from inside the cluster network.
+      - name: marketplace-internal
+        paths:
+          - /internal/marketplace
+        strip_path: true
+        protocols: [http, https]
+        plugins:
+          - name: ip-restriction
+            config:
+              allow:
+                - 10.244.0.0/16   # Kubernetes pod network
+                - 172.16.0.0/12   # Docker Compose networks
 
   # The Next.js frontend. `web` resolves to the Compose service locally and to
   # the Kubernetes Service in the cluster, so one config works in both places.

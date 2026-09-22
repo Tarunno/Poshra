@@ -100,7 +100,7 @@ services:
     environment:
       # Server-side calls go back through the gateway, never straight to a
       # service, so the frontend cannot skip auth or rate limiting.
-      API_BASE_URL: http://kong:8000/api/marketplace
+      API_BASE_URL: http://kong:8000/internal/marketplace
     depends_on:
       marketplace:
         condition: service_healthy

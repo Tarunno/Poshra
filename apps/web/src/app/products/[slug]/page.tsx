@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -67,22 +68,39 @@ export default async function ProductPage({ params }: { params: Params }) {
       </nav>
 
       <div className="grid gap-10 lg:grid-cols-2">
-        <div className="rounded-panel aspect-[4/5] overflow-hidden">
-          {image ? (
-            // eslint-disable-next-line @next/next/no-img-element -- artisan-supplied URLs, no loader configured yet
-            <img
-              src={image.url}
-              alt={image.alt_text || product.title}
-              className="size-full object-cover"
-            />
-          ) : (
-            <CraftTile
-              craftSlug={product.craft.slug}
-              seedKey={product.slug}
-              className="size-full"
-            />
+        <figure className="space-y-2">
+          <div className="rounded-panel relative aspect-[4/5] overflow-hidden">
+            {image ? (
+              <Image
+                src={image.url}
+                alt={image.alt_text || product.title}
+                fill
+                priority
+                sizes="(min-width: 1024px) 45vw, 100vw"
+                className="object-cover"
+              />
+            ) : (
+              <CraftTile
+                craftSlug={product.craft.slug}
+                seedKey={product.slug}
+                className="size-full"
+              />
+            )}
+          </div>
+          {image?.credit && (
+            <figcaption className="text-xs opacity-60">
+              Photograph:{" "}
+              <a
+                href={image.credit_url}
+                className="underline underline-offset-2"
+                rel="nofollow"
+              >
+                {image.credit}
+              </a>
+              {image.license && ` · ${image.license}`}
+            </figcaption>
           )}
-        </div>
+        </figure>
 
         <div className="space-y-6">
           <div className="space-y-3">

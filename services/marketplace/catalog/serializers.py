@@ -37,7 +37,7 @@ class ArtisanSerializer(ArtisanSummarySerializer):
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
-        fields = ("url", "alt_text", "position")
+        fields = ("url", "alt_text", "position", "credit", "credit_url", "license")
 
 
 class ProductSerializer(serializers.ModelSerializer):

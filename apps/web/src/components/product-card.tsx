@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { CraftTile } from "@/components/craft-tile";
 import { Badge } from "@/components/ui/badge";
@@ -15,12 +16,14 @@ export function ProductCard({ product }: { product: Product }) {
       >
         <div className="rounded-3xl relative aspect-[4/5] overflow-hidden">
           {image ? (
-            // eslint-disable-next-line @next/next/no-img-element -- artisan-supplied URLs are not on a configured loader yet
-            <img
+            <Image
               src={image.url}
               alt={image.alt_text || product.title}
-              className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-              loading="lazy"
+              fill
+              // Two columns on small screens, three from lg: tell the optimiser
+              // so it serves a sensibly sized file instead of the full width.
+              sizes="(min-width: 1024px) 30vw, 45vw"
+              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             />
           ) : (
             <CraftTile

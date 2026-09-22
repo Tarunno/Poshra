@@ -167,12 +167,19 @@ class ProductImage(TimestampedModel):
 
     Only the URL is stored: object storage comes with the listing-generation
     work, and until then artisans can point at an existing image.
+
+    Credit fields are not decoration. Photographs carry licences, and most open
+    licences require naming the photographer and the licence wherever the image
+    is shown, so the data has to travel with the image.
     """
 
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="images")
-    url = models.URLField(max_length=500)
+    url = models.URLField(max_length=700)
     alt_text = models.CharField(max_length=200, blank=True)
     position = models.PositiveSmallIntegerField(default=0)
+    credit = models.CharField(max_length=120, blank=True, help_text="Photographer or source")
+    credit_url = models.URLField(max_length=500, blank=True)
+    license = models.CharField(max_length=40, blank=True, help_text='e.g. "CC BY-SA 4.0"')
 
     class Meta:
         db_table = "catalog_product_image"

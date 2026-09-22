@@ -9,7 +9,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import Role, User
-from catalog.models import ArtisanProfile, Craft, Division, Product, ProductStatus
+from catalog.models import ArtisanProfile, Craft, Division, Product, ProductImage, ProductStatus
 
 CRAFTS = [
     {
@@ -299,6 +299,85 @@ PRODUCTS = [
 ]
 
 
+# Photographs from Wikimedia Commons, each under an open licence. The credit
+# fields travel with the image because most of these licences require the
+# photographer and licence to be named wherever the photo appears.
+PRODUCT_IMAGES = {
+    "Jamdani saree, white with indigo geometry": {
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b0/Jamdani_Saree_2014.jpg/1280px-Jamdani_Saree_2014.jpg",
+        "credit": "Aashaa",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3AJamdani_Saree_2014.jpg",
+        "license": "CC BY-SA 3.0",
+    },
+    "Jamdani scarf, rose butidar": {
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4d/The_delicate_process_of_making_a_Jamdani_saree_has_been_passed_down_from_generation_to_generation.jpg/1280px-The_delicate_process_of_making_a_Jamdani_saree_has_been_passed_down_from_generation_to_generation.jpg",
+        "credit": "Syed Sajidul Islam",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3AThe_delicate_process_of_making_a_Jamdani_saree_has_been_passed_down_from_generation_to_generation.jpg",
+        "license": "CC BY-SA 4.0",
+    },
+    "Nakshi kantha throw, fish and lotus": {
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/Nakshi_Kantha%2C_Sonargaon_Folk_Art_and_Craft_Museum.jpg/1280px-Nakshi_Kantha%2C_Sonargaon_Folk_Art_and_Craft_Museum.jpg",
+        "credit": "Nahid Sultan",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3ANakshi_Kantha%2C_Sonargaon_Folk_Art_and_Craft_Museum.jpg",
+        "license": "CC BY-SA 4.0",
+    },
+    "Kantha cushion covers, pair": {
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/18/Nakshi_kantha_%28Flower_motif%29.JPG/1280px-Nakshi_kantha_%28Flower_motif%29.JPG",
+        "credit": "A junaid alam khan",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3ANakshi_kantha_%28Flower_motif%29.JPG",
+        "license": "Public domain",
+    },
+    "Embroidered kantha wall hanging": {
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/04/%E0%A6%A8%E0%A6%95%E0%A6%B6%E0%A7%80%E0%A6%95%E0%A6%BE%E0%A6%81%E0%A6%A5%E0%A6%BE_.jpg/1280px-%E0%A6%A8%E0%A6%95%E0%A6%B6%E0%A7%80%E0%A6%95%E0%A6%BE%E0%A6%81%E0%A6%A5%E0%A6%BE_.jpg",
+        "credit": "Sufe",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3A%E0%A6%A8%E0%A6%95%E0%A6%B6%E0%A7%80%E0%A6%95%E0%A6%BE%E0%A6%81%E0%A6%A5%E0%A6%BE_.jpg",
+        "license": "CC BY-SA 4.0",
+    },
+    "Terracotta water jar with painted bands": {
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ed/Pair_of_Decorated_Terracotta_Pots_Against_a_Window.jpg/1280px-Pair_of_Decorated_Terracotta_Pots_Against_a_Window.jpg",
+        "credit": "A S M Jobaer",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3APair_of_Decorated_Terracotta_Pots_Against_a_Window.jpg",
+        "license": "CC BY-SA 4.0",
+    },
+    "Terracotta temple plaque, dancing figure": {
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/86/Terracotta-Plaque-Aatchala-Temple-Bamira01.jpg/1280px-Terracotta-Plaque-Aatchala-Temple-Bamira01.jpg",
+        "credit": "Amitabha Gupta",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3ATerracotta-Plaque-Aatchala-Temple-Bamira01.jpg",
+        "license": "CC BY 4.0",
+    },
+    "Bell metal serving bowl": {
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Kamatchi_Vilakku.jpg/1280px-Kamatchi_Vilakku.jpg",
+        "credit": "Saral Shots",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3AKamatchi_Vilakku.jpg",
+        "license": "CC0",
+    },
+    "Brass oil lamp, five wicks": {
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7c/Indian_Arati_diya.jpg/1280px-Indian_Arati_diya.jpg",
+        "credit": "Amitbsws",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3AIndian_Arati_diya.jpg",
+        "license": "CC BY-SA 4.0",
+    },
+    "Jute market bag, natural": {
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cd/Jute_bag%28gifts%29.jpg/1280px-Jute_bag%28gifts%29.jpg",
+        "credit": "AbuSayeed",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3AJute_bag%28gifts%29.jpg",
+        "license": "CC BY-SA 4.0",
+    },
+    "Jute floor mat, indigo stripe": {
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Nature%E2%80%99s_Versatile_Fibers.jpg/1280px-Nature%E2%80%99s_Versatile_Fibers.jpg",
+        "credit": "Anushka10patel",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3ANature%E2%80%99s_Versatile_Fibers.jpg",
+        "license": "CC BY-SA 4.0",
+    },
+    "Shitalpati mat, fine weave": {
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/50/Sheetal_Pati_Sunamganj.jpg/1280px-Sheetal_Pati_Sunamganj.jpg",
+        "credit": "Faizul Latif Chowdhury",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3ASheetal_Pati_Sunamganj.jpg",
+        "license": "CC BY-SA 4.0",
+    },
+}
+
+
 class Command(BaseCommand):
     help = "Seed crafts, artisans and products for development and demos."
 
@@ -356,7 +435,7 @@ class Command(BaseCommand):
             lead_time,
             origin,
         ) in PRODUCTS:
-            Product.objects.update_or_create(
+            product, _ = Product.objects.update_or_create(
                 artisan=profiles[email],
                 title=title,
                 defaults={
@@ -372,6 +451,19 @@ class Command(BaseCommand):
                     "status": ProductStatus.PUBLISHED,
                 },
             )
+
+            if photo := PRODUCT_IMAGES.get(title):
+                ProductImage.objects.update_or_create(
+                    product=product,
+                    position=0,
+                    defaults={
+                        "url": photo["url"],
+                        "alt_text": title,
+                        "credit": photo["credit"],
+                        "credit_url": photo["credit_url"],
+                        "license": photo["license"],
+                    },
+                )
 
         self.stdout.write(
             self.style.SUCCESS(

@@ -40,7 +40,15 @@ export type Artisan = ArtisanSummary & {
   crafts: Craft[];
 };
 
-export type ProductImage = { url: string; alt_text: string; position: number };
+export type ProductImage = {
+  url: string;
+  alt_text: string;
+  position: number;
+  /** Most open licences require naming the photographer and the licence. */
+  credit: string;
+  credit_url: string;
+  license: string;
+};
 
 export type Product = {
   id: string;
@@ -69,6 +77,14 @@ export type Page<T> = {
   results: T[];
 };
 
+export type Facets = {
+  crafts: { slug: string; name: string; name_bn: string; count: number }[];
+  divisions: { value: string; count: number }[];
+  price: { min: number; max: number };
+  total: number;
+  in_stock: number;
+};
+
 export type ProductQuery = {
   q?: string;
   craft?: string;
@@ -77,6 +93,7 @@ export type ProductQuery = {
   min_price?: string;
   max_price?: string;
   in_stock?: string;
+  sort?: string;
   limit?: number;
   offset?: number;
 };
@@ -114,6 +131,10 @@ function toQueryString(query: ProductQuery): string {
 
 export function listProducts(query: ProductQuery = {}): Promise<Page<Product>> {
   return publicFetch<Page<Product>>(`/products${toQueryString(query)}`);
+}
+
+export function getFacets(query: ProductQuery = {}): Promise<Facets> {
+  return publicFetch<Facets>(`/products/facets${toQueryString(query)}`);
 }
 
 export function listCrafts(): Promise<Craft[]> {

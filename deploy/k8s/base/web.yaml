@@ -43,7 +43,7 @@ spec:
             # Server-side rendering calls the API through the gateway, so the
             # frontend cannot bypass auth, rate limiting or tracing.
             - name: API_BASE_URL
-              value: http://kong-proxy/api/marketplace
+              value: http://kong-proxy/internal/marketplace
           ports:
             - name: http
               containerPort: 3000
@@ -67,6 +67,18 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            # Next writes its incremental cache and temporary files at runtime;
+            # the root filesystem stays read-only, these do not.
+            - name: next-cache
+              mountPath: /app/.next/cache
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: next-cache
+          emptyDir: { sizeLimit: 256Mi }
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 32Mi }
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
