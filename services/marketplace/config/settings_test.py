@@ -39,3 +39,8 @@ from config.settings import *  # noqa: E402, F403
 DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
 # Fast hashing keeps the suite quick; production uses Argon2.
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+# Throttle counters live in a process-wide cache, so dozens of logins across
+# the suite would trip the limit and make unrelated tests fail. Throttling is
+# exercised deliberately in test_throttling instead.
+REST_FRAMEWORK = {**REST_FRAMEWORK, "DEFAULT_THROTTLE_RATES": {"auth": None}}  # noqa: F405

@@ -265,3 +265,25 @@ def test_me_prefers_the_gateway_identity_header(client, user):
     login(client)  # cookie belongs to `user`
     body = client.get("/auth/me", HTTP_X_USER_ID=str(other.id)).json()
     assert body["email"] == other.email
+
+
+def test_auth_endpoints_are_throttled(client, settings, user):
+    """The service rate-limits itself, even though the gateway also does."""
+    from django.core.cache import cache
+
+    cache.clear()
+    settings.REST_FRAMEWORK = {
+        **settings.REST_FRAMEWORK,
+        "DEFAULT_THROTTLE_RATES": {"auth": "3/min"},
+    }
+    from rest_framework.throttling import ScopedRateThrottle
+
+    ScopedRateThrottle.THROTTLE_RATES = {"auth": "3/min"}
+    try:
+        codes = [login(client, password="wrong").status_code for _ in range(5)]
+    finally:
+        ScopedRateThrottle.THROTTLE_RATES = {"auth": None}
+        cache.clear()
+
+    assert codes[:3] == [401, 401, 401]
+    assert 429 in codes[3:]

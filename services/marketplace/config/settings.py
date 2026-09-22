@@ -18,6 +18,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "accounts",
+    "catalog",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -36,6 +37,8 @@ REST_FRAMEWORK = {
     "UNAUTHENTICATED_USER": None,
     # Defence in depth: the gateway rate-limits too, but the service must not
     # rely on being unreachable directly.
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
+    "PAGE_SIZE": 24,
     "DEFAULT_THROTTLE_RATES": {"auth": env_str("AUTH_THROTTLE_RATE", "30/min")},
 }
 
