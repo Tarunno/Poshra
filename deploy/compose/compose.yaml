@@ -1,0 +1,28 @@
+name: poshra
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgis/postgis:17-3.5}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in .env}
+      # Consumed by init/01-databases.sh to create per-service roles.
+      MARKETPLACE_DB_PASSWORD: ${MARKETPLACE_DB_PASSWORD:?set in .env}
+      CHECKOUT_DB_PASSWORD: ${CHECKOUT_DB_PASSWORD:?set in .env}
+      INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD:?set in .env}
+      ASSISTANT_DB_PASSWORD: ${ASSISTANT_DB_PASSWORD:?set in .env}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-55432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
