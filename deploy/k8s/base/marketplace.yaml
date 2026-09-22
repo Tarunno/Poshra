@@ -49,6 +49,10 @@ spec:
               valueFrom: { secretKeyRef: { name: poshra-django, key: DJANGO_SECRET_KEY } }
             - name: DB_PASSWORD
               valueFrom: { secretKeyRef: { name: poshra-db, key: MARKETPLACE_DB_PASSWORD } }
+            - name: JWT_PRIVATE_KEY_B64
+              valueFrom: { secretKeyRef: { name: poshra-jwt, key: JWT_PRIVATE_KEY_B64 } }
+            - name: JWT_PUBLIC_KEY_B64
+              valueFrom: { secretKeyRef: { name: poshra-jwt, key: JWT_PUBLIC_KEY_B64 } }
           ports:
             - name: http
               containerPort: 8000

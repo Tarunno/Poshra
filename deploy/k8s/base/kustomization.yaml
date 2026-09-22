@@ -33,6 +33,10 @@ configMapGenerator:
       - DB_PORT=5432
       - DB_NAME=marketplace
       - DB_USER=marketplace
+      - JWT_KEY_ID=poshra-cluster-1
+      # The LAN gateway is plain HTTP for now, so Secure cookies would never be
+      # stored by the browser. This must be true once TLS is in front.
+      - AUTH_COOKIE_SECURE=false
 
 images:
   - name: ghcr.io/tarunno/poshra/marketplace
