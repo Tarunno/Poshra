@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/home.png" alt="The Poshra home page: a pastel, hand-stitched interface with an illustration of the Bengal delta" width="900">
+  <img src="docs/assets/hero.png" alt="Poshra running on a laptop, in a browser window and on a phone: the shop with craft filters, a jamdani product page and the mobile storefront" width="960">
 </p>
 
 ---
@@ -59,9 +59,9 @@ Early development, built in the open.
 | | |
 |---|---|
 | ✅ Accounts | Registration, sign-in, rotating sessions, artisan and buyer roles |
-| ✅ Storefront shell | Home, sign-up, sign-in, dashboard |
+| ✅ Catalog | Crafts, artisans, listings with origin and full-text search |
+| ✅ Storefront | Home, shop with craft, region and price filters, product pages, artisan profiles |
 | ✅ Running in production-shape | Gateway, database and services on Kubernetes, deployed by GitOps |
-| 🔜 Catalog | Products, artisan profiles, craft origins, search |
 | 🔜 Listing generation | Photo and voice note to a finished listing |
 | 🔜 Checkout | Cart, stock reservation, orders |
 | 🔜 Conversational shopping and the agent storefront | |

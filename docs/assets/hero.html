@@ -1,0 +1,178 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      /* Composition for the README hero: a laptop with the shop, a browser
+         window with a product page behind it, and a phone in front. */
+      :root {
+        --ink: #1a1523;
+        --cream: #fffcf5;
+        --saffron: #fff1cc;
+        --rose: #ffe4ee;
+        --mint: #ddf5e6;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        width: 1600px;
+        height: 1000px;
+        background:
+          radial-gradient(1200px 700px at 78% 12%, var(--rose) 0%, transparent 60%),
+          radial-gradient(1000px 600px at 12% 85%, var(--mint) 0%, transparent 62%),
+          var(--saffron);
+        font-family: system-ui, sans-serif;
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* Stitched border, the same language as the product */
+      body::after {
+        content: "";
+        position: absolute;
+        inset: 26px;
+        border: 3px dashed rgba(26, 21, 35, 0.18);
+        border-radius: 40px;
+        pointer-events: none;
+      }
+
+      .stage { position: absolute; inset: 0; }
+
+      /* ---------- browser window (behind) ---------- */
+      .browser {
+        position: absolute;
+        top: 96px;
+        right: 78px;
+        width: 880px;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 40px 80px -20px rgba(26, 21, 35, 0.35);
+        transform: rotate(1.2deg);
+      }
+      .chrome {
+        height: 34px;
+        background: #f1ece4;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 0 14px;
+        border-bottom: 1px solid rgba(26, 21, 35, 0.08);
+      }
+      .dot { width: 11px; height: 11px; border-radius: 50%; }
+      .bar {
+        margin-left: 12px;
+        height: 18px;
+        flex: 1;
+        border-radius: 9px;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        font-size: 10px;
+        color: rgba(26, 21, 35, 0.5);
+      }
+      .browser img { display: block; width: 100%; }
+
+      /* ---------- laptop (main) ---------- */
+      .laptop { position: absolute; left: 70px; bottom: 96px; width: 1000px; }
+      .laptop .lid {
+        background: var(--ink);
+        border-radius: 22px;
+        padding: 14px 14px 18px;
+        box-shadow: 0 50px 90px -25px rgba(26, 21, 35, 0.5);
+      }
+      .laptop .screen {
+        border-radius: 10px;
+        overflow: hidden;
+        background: #fff;
+        aspect-ratio: 16 / 10;
+      }
+      .laptop .screen img { display: block; width: 100%; }
+      .laptop .camera {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: #3b3542; margin: 0 auto 8px;
+      }
+      .laptop .base {
+        width: 1130px;
+        margin-left: -65px;
+        height: 16px;
+        background: linear-gradient(#2a2433, #15121c);
+        border-radius: 0 0 14px 14px;
+        position: relative;
+      }
+      .laptop .notch-base {
+        position: absolute; left: 50%; transform: translateX(-50%);
+        width: 140px; height: 6px; border-radius: 0 0 8px 8px;
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      /* ---------- phone (front) ---------- */
+      .phone {
+        position: absolute;
+        right: 150px;
+        bottom: 60px;
+        width: 290px;
+        background: var(--ink);
+        border-radius: 42px;
+        padding: 10px;
+        box-shadow: 0 45px 80px -20px rgba(26, 21, 35, 0.5);
+        transform: rotate(-2deg);
+      }
+      .phone .screen {
+        border-radius: 34px;
+        overflow: hidden;
+        background: #fff;
+        position: relative;
+        aspect-ratio: 390 / 844;
+      }
+      .phone .screen img { display: block; width: 100%; }
+      .phone .island {
+        position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+        width: 86px; height: 22px; border-radius: 12px; background: var(--ink);
+      }
+
+      /* ---------- caption ---------- */
+      .caption { position: absolute; left: 78px; top: 70px; }
+      .caption h1 {
+        font-size: 44px; letter-spacing: -0.02em; color: var(--ink); font-weight: 800;
+      }
+      .caption p { margin-top: 8px; font-size: 19px; color: rgba(26, 21, 35, 0.68); }
+      .bn { font-size: 17px; color: rgba(26, 21, 35, 0.55); }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="caption">
+        <p class="bn">পসরা</p>
+        <h1>Poshra</h1>
+        <p>Crafts from Bangladesh, sold the way they deserve.</p>
+      </div>
+
+      <div class="browser">
+        <div class="chrome">
+          <span class="dot" style="background: #ff5f57"></span>
+          <span class="dot" style="background: #febc2e"></span>
+          <span class="dot" style="background: #28c840"></span>
+          <span class="bar">poshra.local/products/jamdani-saree-white-with-indigo-geometry</span>
+        </div>
+        <img src="cap-product.png" alt="" />
+      </div>
+
+      <div class="laptop">
+        <div class="lid">
+          <div class="camera"></div>
+          <div class="screen"><img src="cap-shop.png" alt="" /></div>
+        </div>
+        <div class="base"><div class="notch-base"></div></div>
+      </div>
+
+      <div class="phone">
+        <div class="screen">
+          <div class="island"></div>
+          <img src="cap-mobile.png" alt="" />
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
