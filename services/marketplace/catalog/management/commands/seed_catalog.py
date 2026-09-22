@@ -346,10 +346,10 @@ PRODUCT_IMAGES = {
         "license": "CC BY 4.0",
     },
     "Bell metal serving bowl": {
-        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Kamatchi_Vilakku.jpg/1280px-Kamatchi_Vilakku.jpg",
-        "credit": "Saral Shots",
-        "credit_url": "https://commons.wikimedia.org/wiki/File%3AKamatchi_Vilakku.jpg",
-        "license": "CC0",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e5/Kansa_bowl.jpg/1280px-Kansa_bowl.jpg",
+        "credit": "Kavittaa",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3AKansa_bowl.jpg",
+        "license": "CC BY-SA 4.0",
     },
     "Brass oil lamp, five wicks": {
         "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7c/Indian_Arati_diya.jpg/1280px-Indian_Arati_diya.jpg",
@@ -358,9 +358,9 @@ PRODUCT_IMAGES = {
         "license": "CC BY-SA 4.0",
     },
     "Jute market bag, natural": {
-        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cd/Jute_bag%28gifts%29.jpg/1280px-Jute_bag%28gifts%29.jpg",
-        "credit": "AbuSayeed",
-        "credit_url": "https://commons.wikimedia.org/wiki/File%3AJute_bag%28gifts%29.jpg",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f9/Wikimania_Bangladesh_2022_%E2%80%94_jute_bag.jpg/1280px-Wikimania_Bangladesh_2022_%E2%80%94_jute_bag.jpg",
+        "credit": "মোহাম্মদ জনি হোসেন",
+        "credit_url": "https://commons.wikimedia.org/wiki/File%3AWikimania_Bangladesh_2022_%E2%80%94_jute_bag.jpg",
         "license": "CC BY-SA 4.0",
     },
     "Jute floor mat, indigo stripe": {
