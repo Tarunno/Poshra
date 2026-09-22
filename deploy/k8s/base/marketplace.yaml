@@ -53,17 +53,27 @@ spec:
             - name: http
               containerPort: 8000
           startupProbe:
-            httpGet: { path: /healthz, port: http }
+            httpGet:
+              path: /healthz
+              port: http
+              # kubelet sends Host: <pod IP>, which ALLOWED_HOSTS rejects with 400.
+              httpHeaders: [{ name: Host, value: localhost }]
             periodSeconds: 2
             failureThreshold: 30
           readinessProbe:
-            httpGet: { path: /readyz, port: http }
+            httpGet:
+              path: /readyz
+              port: http
+              httpHeaders: [{ name: Host, value: localhost }]
             periodSeconds: 5
             failureThreshold: 2
           livenessProbe:
             # Liveness never checks the database: a database outage must not
             # trigger a restart loop across every replica.
-            httpGet: { path: /healthz, port: http }
+            httpGet:
+              path: /healthz
+              port: http
+              httpHeaders: [{ name: Host, value: localhost }]
             periodSeconds: 10
             failureThreshold: 3
           resources:

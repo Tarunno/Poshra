@@ -20,9 +20,12 @@ FROM python:3.13-slim AS runtime
 RUN groupadd --system --gid 10001 app \
  && useradd --system --uid 10001 --gid app --no-create-home app
 
+# HOME=/tmp: the runtime user has no home directory, and the root filesystem is
+# read-only in Kubernetes, while gunicorn writes runtime files under $HOME.
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    HOME=/tmp
 
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
