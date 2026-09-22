@@ -17,14 +17,14 @@ services:
         strip_path: true
         protocols: [http, https]
     plugins:
-      - name: rate-limiting
+      # Leaky bucket (GCRA): a steady 5 req/s per client IP with bursts of up
+      # to 10. Unlike a fixed window, a client cannot double its rate at a
+      # window boundary. Custom plugin: gateway/kong/plugins/poshra-leaky-bucket
+      - name: poshra-leaky-bucket
         config:
-          minute: 60
+          rate: 5
+          burst: 10
           limit_by: ip
-          # Counters live in each Kong node's memory. Switches to Redis when Kong
-          # runs more than one replica, so limits are shared.
-          policy: local
-          hide_client_headers: false
 
 plugins:
   # Every request gets an ID that is logged by Kong, passed upstream and returned

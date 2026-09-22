@@ -62,11 +62,16 @@ services:
       KONG_ADMIN_ACCESS_LOG: /dev/stdout
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_ADMIN_ERROR_LOG: /dev/stderr
+      # Custom plugins are loaded in addition to the bundled ones.
+      KONG_PLUGINS: bundled,poshra-leaky-bucket
+      # Shared memory for bucket state and per-key locks, visible to all workers.
+      KONG_NGINX_HTTP_LUA_SHARED_DICT: poshra_leaky_bucket 10m; lua_shared_dict poshra_leaky_bucket_locks 1m
     ulimits:
       # Each proxied request uses file descriptors; the default 1024 is too low.
       nofile: { soft: 65536, hard: 65536 }
     volumes:
       - ../../gateway/kong:/kong:ro
+      - ../../gateway/kong/plugins/poshra-leaky-bucket:/usr/local/share/lua/5.1/kong/plugins/poshra-leaky-bucket:ro
     ports:
       - "127.0.0.1:${KONG_PROXY_HOST_PORT:-8080}:8000"
       # Admin API: localhost only, never exposed publicly.
