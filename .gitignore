@@ -1,0 +1,30 @@
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+.next/
+out/
+
+# Go
+/bin/
+*.test
+coverage.out
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Local, personal Claude Code instructions
+CLAUDE.local.md
