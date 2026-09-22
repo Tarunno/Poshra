@@ -357,18 +357,6 @@ PRODUCT_IMAGES = {
         "credit_url": "https://commons.wikimedia.org/wiki/File%3AIndian_Arati_diya.jpg",
         "license": "CC BY-SA 4.0",
     },
-    "Jute market bag, natural": {
-        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f9/Wikimania_Bangladesh_2022_%E2%80%94_jute_bag.jpg/1280px-Wikimania_Bangladesh_2022_%E2%80%94_jute_bag.jpg",
-        "credit": "মোহাম্মদ জনি হোসেন",
-        "credit_url": "https://commons.wikimedia.org/wiki/File%3AWikimania_Bangladesh_2022_%E2%80%94_jute_bag.jpg",
-        "license": "CC BY-SA 4.0",
-    },
-    "Jute floor mat, indigo stripe": {
-        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Nature%E2%80%99s_Versatile_Fibers.jpg/1280px-Nature%E2%80%99s_Versatile_Fibers.jpg",
-        "credit": "Anushka10patel",
-        "credit_url": "https://commons.wikimedia.org/wiki/File%3ANature%E2%80%99s_Versatile_Fibers.jpg",
-        "license": "CC BY-SA 4.0",
-    },
     "Shitalpati mat, fine weave": {
         "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/50/Sheetal_Pati_Sunamganj.jpg/1280px-Sheetal_Pati_Sunamganj.jpg",
         "credit": "Faizul Latif Chowdhury",
@@ -464,6 +452,11 @@ class Command(BaseCommand):
                         "license": photo["license"],
                     },
                 )
+
+        # Photographs can be withdrawn (a licence, a better shot, or an image
+        # that turned out to show something else). Seeding must remove those
+        # rows too, or the old picture lingers.
+        ProductImage.objects.exclude(product__title__in=PRODUCT_IMAGES).delete()
 
         self.stdout.write(
             self.style.SUCCESS(
