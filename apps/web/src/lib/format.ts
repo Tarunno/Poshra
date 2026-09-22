@@ -9,24 +9,49 @@
 
 const formatters = new Map<string, Intl.NumberFormat>();
 
-function formatter(currency: string, locale: string): Intl.NumberFormat {
-  const key = `${locale}:${currency}`;
+function formatter(
+  currency: string,
+  locale: string,
+  fractionDigits?: number,
+): Intl.NumberFormat {
+  const key = `${locale}:${currency}:${fractionDigits ?? "auto"}`;
   let cached = formatters.get(key);
   if (!cached) {
-    cached = new Intl.NumberFormat(locale, { style: "currency", currency });
+    cached = new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+      // The symbol alone (৳, $) reads as a price; the ISO code reads as a
+      // spreadsheet.
+      currencyDisplay: "narrowSymbol",
+      ...(fractionDigits === undefined
+        ? {}
+        : {
+            minimumFractionDigits: fractionDigits,
+            maximumFractionDigits: fractionDigits,
+          }),
+    });
     formatters.set(key, cached);
   }
   return cached;
 }
 
+/**
+ * Format an integer amount of minor units.
+ *
+ * Whole amounts drop the decimals (৳5,600 rather than ৳5,600.00) while
+ * fractional ones keep them (৳5,600.50).
+ */
 export function formatMoney(
   minor: number,
   currency: string,
   locale = "en-US",
 ): string {
-  const fmt = formatter(currency, locale);
-  const digits = fmt.resolvedOptions().maximumFractionDigits ?? 2;
-  return fmt.format(minor / 10 ** digits);
+  const digits =
+    formatter(currency, locale).resolvedOptions().maximumFractionDigits ?? 2;
+  const isWhole = minor % 10 ** digits === 0;
+  return formatter(currency, locale, isWhole ? 0 : digits).format(
+    minor / 10 ** digits,
+  );
 }
 
 export function formatLeadTime(days: number): string {
