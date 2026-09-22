@@ -6,11 +6,11 @@ resources:
   - ../../base
 
 # CI replaces these tags with the built commit SHA:
-#   sed -i "s|newTag: 190d8ab332d2aa06521703a684a517fd690ce5b8
+#   sed -i "s|newTag: 8d1dcf6360730684bbb9e5794fd18956503f2e8a
 images:
   - name: ghcr.io/tarunno/poshra/marketplace
-    newTag: 190d8ab332d2aa06521703a684a517fd690ce5b8
+    newTag: 8d1dcf6360730684bbb9e5794fd18956503f2e8a
   - name: ghcr.io/tarunno/poshra/web
-    newTag: 190d8ab332d2aa06521703a684a517fd690ce5b8
+    newTag: 8d1dcf6360730684bbb9e5794fd18956503f2e8a
   - name: ghcr.io/tarunno/poshra/kong
-    newTag: 190d8ab332d2aa06521703a684a517fd690ce5b8
+    newTag: 8d1dcf6360730684bbb9e5794fd18956503f2e8a
