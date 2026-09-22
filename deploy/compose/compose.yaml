@@ -69,9 +69,6 @@ services:
       # Custom plugins are loaded in addition to the bundled ones.
       KONG_PLUGINS: bundled,poshra-leaky-bucket
       KONG_DNS_RESOLVER: 127.0.0.11
-      # Ask for A records first. The default order tries SRV first, and the
-      # upstream resolver answers unknown names with a parking address.
-      KONG_DNS_ORDER: A,CNAME,SRV,LAST
       # Shared memory for bucket state and per-key locks, visible to all workers.
       KONG_NGINX_HTTP_LUA_SHARED_DICT: poshra_leaky_bucket 10m; lua_shared_dict poshra_leaky_bucket_locks 1m
     # The host's DNS search domain resolves anything to a parking address, so

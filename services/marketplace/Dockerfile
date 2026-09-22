@@ -41,6 +41,4 @@ EXPOSE 8000
 CMD ["gunicorn", "config.wsgi:application", \
      "--bind", "0.0.0.0:8000", \
      "--workers", "2", \
-     "--access-logfile", "-", \
-     "--access-logformat", "%(h)s \"%(r)s\" %(s)s %(b)s %(M)sms request_id=%({x-request-id}i)s", \
      "--graceful-timeout", "20"]

@@ -10,7 +10,11 @@ COPY kong.yaml /kong/kong.yaml
 RUN chown -R kong:0 /kong && chmod -R g=u /kong
 
 USER kong
-ENV KONG_DATABASE=off \
+# Ask for A records before SRV. Kong's default order tries SRV first, and a
+# resolver that answers unknown names with a parking address (many home and ISP
+# resolvers do) then poisons upstream resolution.
+ENV KONG_DNS_ORDER=A,CNAME,SRV,LAST \
+    KONG_DATABASE=off \
     KONG_DECLARATIVE_CONFIG=/kong/kong.yaml \
     KONG_PLUGINS=bundled,poshra-leaky-bucket \
     KONG_NGINX_HTTP_LUA_SHARED_DICT="poshra_leaky_bucket 10m; lua_shared_dict poshra_leaky_bucket_locks 1m"

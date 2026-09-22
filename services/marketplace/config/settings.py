@@ -40,6 +40,8 @@ REST_FRAMEWORK = {
 }
 
 MIDDLEWARE = [
+    # First in the list: it binds the request id that every later log line uses.
+    "config.observability.RequestLogMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -99,6 +101,25 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Structured logging: JSON lines on stdout, ready for a collector and for
+# trace correlation once OpenTelemetry is added. Django's own defaults would
+# mail exceptions to admins and log nothing visible with DEBUG off.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"json": {"()": "config.observability.JsonFormatter"}},
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "json"},
+    },
+    "root": {"handlers": ["console"], "level": env_str("LOG_LEVEL", "INFO")},
+    "loggers": {
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        # The request middleware logs access lines, so Django's server log
+        # would only duplicate them.
+        "django.server": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+    },
+}
 
 # --- Tokens -----------------------------------------------------------------
 # Keys are PEM, base64-encoded so they survive a single-line environment
