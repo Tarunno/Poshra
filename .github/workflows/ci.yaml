@@ -1,0 +1,148 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# One deploy at a time; a newer push cancels an older queued run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/poshra
+
+jobs:
+  changes:
+    name: detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      marketplace: ${{ steps.filter.outputs.marketplace }}
+      gateway: ${{ steps.filter.outputs.gateway }}
+      deploy: ${{ steps.filter.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            marketplace:
+              - 'services/marketplace/**'
+            gateway:
+              - 'gateway/kong/**'
+            deploy:
+              - 'deploy/k8s/**'
+
+  test-marketplace:
+    name: test marketplace
+    needs: changes
+    if: needs.changes.outputs.marketplace == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/marketplace
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -q
+
+  test-gateway:
+    name: test kong plugins
+    needs: changes
+    if: needs.changes.outputs.gateway == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The GCRA unit tests run in the Kong image, which ships the resty CLI.
+      - run: |
+          docker run --rm -v "${{ github.workspace }}/gateway/kong:/kong:ro" \
+            --entrypoint resty kong:3.9.3 /kong/tests/gcra_test.lua
+
+  build:
+    name: build ${{ matrix.service }}
+    needs: [changes, test-marketplace, test-gateway]
+    # Run when the needed tests pass or were skipped, but not if one failed.
+    if: always() && !contains(needs.*.result, 'failure') && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - service: marketplace
+            context: services/marketplace
+          - service: kong
+            context: gateway/kong
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          # Immutable tag (commit SHA) is what gets deployed; `main` is a
+          # convenience pointer. Never deploy a moving tag.
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:main
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: deploy to local k8s
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    # Self-hosted runner on the LAN: GitHub cannot reach 192.168.110.x, so the
+    # runner polls GitHub outbound instead.
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pin image tags to this commit
+        working-directory: deploy/k8s/overlays/local
+        run: |
+          sed -i "s|newTag: .*|newTag: ${{ github.sha }}|" kustomization.yaml
+          grep -A1 'name: ' kustomization.yaml
+
+      - name: Run database migrations (before the new code serves traffic)
+        run: |
+          set -euo pipefail
+          IMAGE=${{ env.IMAGE_PREFIX }}/marketplace:${{ github.sha }}
+          JOB=$(sed "s|IMAGE_PLACEHOLDER|$IMAGE|" deploy/k8s/jobs/migrate.yaml \
+                | kubectl create -f - -o name)
+          kubectl -n poshra wait --for=condition=complete --timeout=300s "$JOB" \
+            || { kubectl -n poshra logs "$JOB" --tail=50; exit 1; }
+          kubectl -n poshra logs "$JOB" --tail=20
+
+      - name: Apply manifests
+        run: kubectl kustomize deploy/k8s/overlays/local | kubectl apply -f -
+
+      - name: Wait for rollout
+        run: |
+          kubectl -n poshra rollout status deploy/marketplace --timeout=300s
+          kubectl -n poshra rollout status deploy/kong --timeout=180s
+
+      - name: Smoke test through the gateway
+        run: |
+          set -euo pipefail
+          IP=$(kubectl -n poshra get svc kong-proxy -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "gateway: $IP"
+          curl -fsS --retry 10 --retry-delay 3 --retry-all-errors \
+            "http://$IP/api/marketplace/readyz" | tee /dev/stderr | grep -q '"status": "ready"'
+
+      - name: Report
+        if: always()
+        run: kubectl -n poshra get pods -o wide

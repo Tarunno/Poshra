@@ -38,5 +38,30 @@ kong-test: ## Run Kong plugin unit tests
 kong-reload: ## Apply gateway/kong/kong.yaml to the running Kong without a restart
 	curl -sf -X POST http://127.0.0.1:$${KONG_ADMIN_HOST_PORT:-8001}/config -F config=@gateway/kong/kong.yaml > /dev/null && echo "kong config reloaded"
 
+k8s-secrets: ## Create namespace + secrets in the cluster (generates random passwords once)
+	kubectl get ns poshra >/dev/null 2>&1 || kubectl create ns poshra
+	kubectl -n poshra get secret poshra-db >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-db \
+		--from-literal=POSTGRES_SUPERUSER_PASSWORD=$$(openssl rand -hex 24) \
+		--from-literal=MARKETPLACE_DB_PASSWORD=$$(openssl rand -hex 24) \
+		--from-literal=CHECKOUT_DB_PASSWORD=$$(openssl rand -hex 24) \
+		--from-literal=INVENTORY_DB_PASSWORD=$$(openssl rand -hex 24) \
+		--from-literal=ASSISTANT_DB_PASSWORD=$$(openssl rand -hex 24)
+	kubectl -n poshra get secret poshra-django >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-django \
+		--from-literal=DJANGO_SECRET_KEY=$$(openssl rand -base64 48 | tr -d '\n')
+	@kubectl -n poshra get secret
+
+k8s-deploy: ## Apply manifests to the cluster (TAG=<image tag>, default dev)
+	cd deploy/k8s/overlays/local && kubectl kustomize . | kubectl apply -f -
+	kubectl -n poshra rollout status deploy/marketplace --timeout=180s
+	kubectl -n poshra rollout status deploy/kong --timeout=120s
+
+k8s-migrate: ## Run Django migrations in the cluster as a one-off Job
+	@IMAGE=$$(kubectl -n poshra get deploy marketplace -o jsonpath='{.spec.template.spec.containers[0].image}'); \
+	sed "s|IMAGE_PLACEHOLDER|$$IMAGE|" deploy/k8s/jobs/migrate.yaml | kubectl create -f - -o name | \
+	xargs -I{} kubectl -n poshra wait --for=condition=complete --timeout=180s {}
+
+k8s-status: ## Show what is running in the poshra namespace
+	kubectl -n poshra get pods,svc,pvc -o wide
+
 psql: ## Open psql as a service role (e.g. make psql db=marketplace)
 	$(COMPOSE) exec postgres psql -U $(or $(db),postgres) -d $(or $(db),postgres)

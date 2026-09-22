@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Local 3-node cluster (1 control plane + 2 workers) on 192.168.110.0/24.
+resources:
+  - ../../base
+
+# CI replaces these tags with the built commit SHA:
+#   kustomize edit set image ghcr.io/tarunno/poshra/marketplace=...:<sha>
+images:
+  - name: ghcr.io/tarunno/poshra/marketplace
+    newTag: dev
+  - name: ghcr.io/tarunno/poshra/kong
+    newTag: dev

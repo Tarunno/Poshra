@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: poshra
+
+labels:
+  # Applied to objects only, not to selectors: selectors are immutable after
+  # creation, so keeping them out avoids painful upgrades later.
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: poshra
+
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - marketplace.yaml
+  - kong.yaml
+
+configMapGenerator:
+  - name: postgres-init
+    files:
+      - 01-databases.sh=files/postgres-init.sh
+  - name: marketplace-config
+    # No name hash: the migration Job (deploy/k8s/jobs/migrate.yaml) references
+    # this ConfigMap by a fixed name.
+    options:
+      disableNameSuffixHash: true
+    literals:
+      - DJANGO_DEBUG=false
+      - DJANGO_ALLOWED_HOSTS=marketplace,marketplace.poshra.svc.cluster.local,localhost,127.0.0.1
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=marketplace
+      - DB_USER=marketplace
+
+images:
+  - name: ghcr.io/tarunno/poshra/marketplace
+    newTag: dev
+  - name: ghcr.io/tarunno/poshra/kong
+    newTag: dev
