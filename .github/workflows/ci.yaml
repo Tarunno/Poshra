@@ -12,7 +12,6 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/poshra
 
 jobs:
   changes:
@@ -83,6 +82,12 @@ jobs:
             context: gateway/kong
     steps:
       - uses: actions/checkout@v4
+
+      # GHCR rejects upper-case names, and the owner is "Tarunno".
+      - name: Compute image name
+        id: image
+        run: echo "prefix=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/poshra" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -96,8 +101,8 @@ jobs:
           # Immutable tag (commit SHA) is what gets deployed; `main` is a
           # convenience pointer. Never deploy a moving tag.
           tags: |
-            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
-            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:main
+            ${{ steps.image.outputs.prefix }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ steps.image.outputs.prefix }}/${{ matrix.service }}:main
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
