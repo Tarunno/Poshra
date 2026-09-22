@@ -1,3 +1,4 @@
+import base64
 from pathlib import Path
 
 from config.env import env_bool, env_int, env_list, env_str
@@ -15,7 +16,25 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
+    "accounts",
 ]
+
+AUTH_USER_MODEL = "accounts.User"
+
+# Argon2id is the current recommendation for password hashing; the others stay
+# so existing hashes can still be verified and upgraded on next login.
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.ScryptPasswordHasher",
+]
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    "UNAUTHENTICATED_USER": None,
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -77,3 +96,25 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# --- Tokens -----------------------------------------------------------------
+# Keys are PEM, base64-encoded so they survive a single-line environment
+# variable. Only this service holds the private key.
+JWT_PRIVATE_KEY = base64.b64decode(env_str("JWT_PRIVATE_KEY_B64")).decode()
+JWT_PUBLIC_KEY = base64.b64decode(env_str("JWT_PUBLIC_KEY_B64")).decode()
+JWT_KEY_ID = env_str("JWT_KEY_ID", "poshra-2026-09")
+JWT_ISSUER = env_str("JWT_ISSUER", "poshra-marketplace")
+JWT_AUDIENCE = env_str("JWT_AUDIENCE", "poshra-api")
+# Short access token: a stateless token cannot be withdrawn, so its lifetime
+# is the blast radius of a stolen one.
+JWT_ACCESS_TTL_SECONDS = env_int("JWT_ACCESS_TTL_SECONDS", 600)
+JWT_REFRESH_TTL_SECONDS = env_int("JWT_REFRESH_TTL_SECONDS", 60 * 60 * 24 * 14)
+
+# --- Auth cookies -----------------------------------------------------------
+ACCESS_COOKIE_NAME = env_str("ACCESS_COOKIE_NAME", "poshra_at")
+REFRESH_COOKIE_NAME = env_str("REFRESH_COOKIE_NAME", "poshra_rt")
+CSRF_COOKIE_NAME_AUTH = env_str("CSRF_COOKIE_NAME_AUTH", "poshra_csrf")
+REFRESH_COOKIE_PATH = env_str("REFRESH_COOKIE_PATH", "/api/marketplace/auth")
+# Secure cookies require HTTPS. The LAN cluster is plain HTTP for now, so this
+# is configurable; it must be true anywhere real.
+AUTH_COOKIE_SECURE = env_bool("AUTH_COOKIE_SECURE", default=True)

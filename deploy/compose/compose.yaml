@@ -37,6 +37,10 @@ services:
       DB_NAME: marketplace
       DB_USER: marketplace
       DB_PASSWORD: ${MARKETPLACE_DB_PASSWORD:?set in .env}
+      JWT_PRIVATE_KEY_B64: ${JWT_PRIVATE_KEY_B64:?set in .env (make jwt-keys)}
+      JWT_PUBLIC_KEY_B64: ${JWT_PUBLIC_KEY_B64:?set in .env (make jwt-keys)}
+      JWT_KEY_ID: ${JWT_KEY_ID:-poshra-dev-1}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
     # No host port: all traffic enters through Kong.
     depends_on:
       postgres:

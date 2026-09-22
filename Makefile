@@ -38,6 +38,9 @@ kong-test: ## Run Kong plugin unit tests
 kong-reload: ## Apply gateway/kong/kong.yaml to the running Kong without a restart
 	curl -sf -X POST http://127.0.0.1:$${KONG_ADMIN_HOST_PORT:-8001}/config -F config=@gateway/kong/kong.yaml > /dev/null && echo "kong config reloaded"
 
+jwt-keys: ## Print a fresh RSA key pair as base64 env lines (paste into .env)
+	@python3 -c "import base64;from cryptography.hazmat.primitives import serialization as s;from cryptography.hazmat.primitives.asymmetric import rsa;k=rsa.generate_private_key(public_exponent=65537,key_size=2048);priv=k.private_bytes(s.Encoding.PEM,s.PrivateFormat.PKCS8,s.NoEncryption());pub=k.public_key().public_bytes(s.Encoding.PEM,s.PublicFormat.SubjectPublicKeyInfo);print('JWT_PRIVATE_KEY_B64='+base64.b64encode(priv).decode());print('JWT_PUBLIC_KEY_B64='+base64.b64encode(pub).decode())"
+
 k8s-secrets: ## Create namespace + secrets in the cluster (generates random passwords once)
 	kubectl get ns poshra >/dev/null 2>&1 || kubectl create ns poshra
 	kubectl -n poshra get secret poshra-db >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-db \

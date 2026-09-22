@@ -29,8 +29,9 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
-COPY manage.py ./
-COPY config ./config
+# Whole source tree; .dockerignore keeps tests, caches and .env out, so new
+# Django apps do not need a Dockerfile change.
+COPY . .
 
 # Numeric UID: Kubernetes cannot verify a user *name* is non-root when
 # runAsNonRoot is set.
