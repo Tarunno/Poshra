@@ -29,7 +29,9 @@ COPY --from=builder /opt/venv /opt/venv
 COPY manage.py ./
 COPY config ./config
 
-USER app
+# Numeric UID: Kubernetes cannot verify a user *name* is non-root when
+# runAsNonRoot is set.
+USER 10001:10001
 EXPOSE 8000
 
 CMD ["gunicorn", "config.wsgi:application", \
