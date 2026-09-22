@@ -109,7 +109,9 @@ jobs:
   bump-manifests:
     name: pin image tags in git
     needs: build
-    if: github.ref == 'refs/heads/main'
+    # `build` runs under always(), so a skipped test job upstream marks this job
+    # skipped too unless the condition is explicit about what it requires.
+    if: always() && needs.build.result == 'success' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
