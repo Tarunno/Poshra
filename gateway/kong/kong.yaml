@@ -26,12 +26,12 @@ services:
           burst: 10
           limit_by: ip
 
-  # The Next.js frontend. In local development it runs on the host
-  # (`npm run dev`), so Kong reaches it through the host gateway; in Kubernetes
-  # this becomes the in-cluster `web` service. Serving the app and the API from
-  # one origin is what makes the auth cookies work.
+  # The Next.js frontend. `web` resolves to the Compose service locally and to
+  # the Kubernetes Service in the cluster, so one config works in both places.
+  # Serving the app and the API from one origin is what makes the auth cookies
+  # work.
   - name: web
-    url: http://host.docker.internal:3000
+    url: http://web:3000
     connect_timeout: 2000
     read_timeout: 30000
     write_timeout: 30000

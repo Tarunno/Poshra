@@ -68,11 +68,16 @@ services:
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       # Custom plugins are loaded in addition to the bundled ones.
       KONG_PLUGINS: bundled,poshra-leaky-bucket
+      KONG_DNS_RESOLVER: 127.0.0.11
+      # Ask for A records first. The default order tries SRV first, and the
+      # upstream resolver answers unknown names with a parking address.
+      KONG_DNS_ORDER: A,CNAME,SRV,LAST
       # Shared memory for bucket state and per-key locks, visible to all workers.
       KONG_NGINX_HTTP_LUA_SHARED_DICT: poshra_leaky_bucket 10m; lua_shared_dict poshra_leaky_bucket_locks 1m
-    extra_hosts:
-      # Lets Kong reach the Next.js dev server running on the host.
-      - "host.docker.internal:host-gateway"
+    # The host's DNS search domain resolves anything to a parking address, so
+    # Kong's lookup of `web` returned 127.0.53.53. An empty search list forces
+    # exact names against Docker's embedded DNS.
+    dns_search: "."
     ulimits:
       # Each proxied request uses file descriptors; the default 1024 is too low.
       nofile: { soft: 65536, hard: 65536 }
@@ -89,6 +94,25 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../../apps/web
+    image: poshra/web:dev
+    environment:
+      # Server-side calls go back through the gateway, never straight to a
+      # service, so the frontend cannot skip auth or rate limiting.
+      API_BASE_URL: http://kong:8000/api/marketplace
+    depends_on:
+      marketplace:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
     restart: unless-stopped
 
 volumes:

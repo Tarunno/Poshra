@@ -6,9 +6,11 @@ resources:
   - ../../base
 
 # CI replaces these tags with the built commit SHA:
-#   kustomize edit set image ghcr.io/tarunno/poshra/marketplace=...:<sha>
+#   sed -i "s|newTag: .*|newTag: <sha>|" kustomization.yaml
 images:
   - name: ghcr.io/tarunno/poshra/marketplace
+    newTag: 552ad7496c34db2dd8a65ba85dfdeef6ac525775
+  - name: ghcr.io/tarunno/poshra/web
     newTag: 552ad7496c34db2dd8a65ba85dfdeef6ac525775
   - name: ghcr.io/tarunno/poshra/kong
     newTag: 552ad7496c34db2dd8a65ba85dfdeef6ac525775

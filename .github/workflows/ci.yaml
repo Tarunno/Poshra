@@ -20,6 +20,7 @@ jobs:
     outputs:
       marketplace: ${{ steps.filter.outputs.marketplace }}
       gateway: ${{ steps.filter.outputs.gateway }}
+      web: ${{ steps.filter.outputs.web }}
       deploy: ${{ steps.filter.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +30,8 @@ jobs:
           filters: |
             marketplace:
               - 'services/marketplace/**'
+            web:
+              - 'apps/web/**'
             gateway:
               - 'gateway/kong/**'
             deploy:
@@ -80,6 +83,8 @@ jobs:
             context: services/marketplace
           - service: kong
             context: gateway/kong
+          - service: web
+            context: apps/web
     steps:
       - uses: actions/checkout@v4
 

@@ -14,6 +14,7 @@ resources:
   - namespace.yaml
   - postgres.yaml
   - marketplace.yaml
+  - web.yaml
   - kong.yaml
 
 configMapGenerator:
@@ -37,4 +38,6 @@ images:
   - name: ghcr.io/tarunno/poshra/marketplace
     newTag: dev
   - name: ghcr.io/tarunno/poshra/kong
+    newTag: dev
+  - name: ghcr.io/tarunno/poshra/web
     newTag: dev
