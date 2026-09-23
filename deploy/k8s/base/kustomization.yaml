@@ -15,6 +15,7 @@ resources:
   - postgres.yaml
   - marketplace.yaml
   - sales-consumer.yaml
+  - stock-reconciler.yaml
   - inventory.yaml
   - checkout.yaml
   - web.yaml

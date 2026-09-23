@@ -1,0 +1,61 @@
+# The safety net behind best-effort stock publishing.
+#
+# Saving a listing announces its level, but a broker outage at that moment
+# loses the announcement. This republishes every level, which is cheap because
+# the catalog is small and the events are keyed by sku, so a republish settles
+# on the same numbers rather than adding to them.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: stock-reconciler
+spec:
+  # Nightly: an event lost during the day is repaired by the next save or by
+  # this, whichever comes first.
+  schedule: "17 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: stock-reconciler
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: reconciler
+              image: ghcr.io/tarunno/poshra/marketplace:dev
+              command: ["python", "manage.py", "sync_stock"]
+              envFrom:
+                - configMapRef: { name: marketplace-config }
+              env:
+                - name: DJANGO_SECRET_KEY
+                  valueFrom: { secretKeyRef: { name: poshra-django, key: DJANGO_SECRET_KEY } }
+                - name: DB_PASSWORD
+                  valueFrom: { secretKeyRef: { name: poshra-db, key: MARKETPLACE_DB_PASSWORD } }
+                - name: JWT_PRIVATE_KEY_B64
+                  valueFrom: { secretKeyRef: { name: poshra-jwt, key: JWT_PRIVATE_KEY_B64 } }
+                - name: JWT_PUBLIC_KEY_B64
+                  valueFrom: { secretKeyRef: { name: poshra-jwt, key: JWT_PUBLIC_KEY_B64 } }
+                - name: KAFKA_BROKERS
+                  value: poshra-kafka-bootstrap:9092
+              resources:
+                requests: { cpu: 25m, memory: 160Mi }
+                limits: { memory: 320Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: { medium: Memory, sizeLimit: 32Mi }

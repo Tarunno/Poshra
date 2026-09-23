@@ -425,3 +425,33 @@ def test_id_filter_still_hides_drafts(client, artisan, craft):
         artisan=artisan, craft=craft, title="Draft piece", price_minor=1000, stock=1
     )
     assert client.get(f"{PRODUCTS}?ids={draft.id}").json()["count"] == 0
+
+
+def test_a_draft_announces_no_sellable_stock(artisan, craft):
+    from catalog.events import stock_payload
+
+    draft = Product.objects.create(
+        artisan=artisan, craft=craft, title="On the loom", price_minor=1000, stock=4
+    )
+    # A piece that is not in the shop cannot be bought, so inventory is told
+    # zero rather than four — otherwise pulling a listing would leave stock
+    # reservable behind it.
+    assert stock_payload(draft)["quantity"] == 0
+    assert stock_payload(draft)["sku_id"] == str(draft.id)
+
+
+def test_a_published_piece_announces_its_count(artisan, craft, product):
+    from catalog.events import stock_payload
+
+    payload = stock_payload(product)
+    assert payload["quantity"] == product.stock
+    assert payload["status"] == "published"
+
+
+def test_publishing_stock_is_skipped_without_a_broker(artisan, craft, product, settings):
+    from catalog.events import publish_stock
+
+    # Saving must never depend on Kafka being configured, or migrations and
+    # tests would need a broker.
+    settings.KAFKA_BROKERS = []
+    publish_stock(product)  # must not raise

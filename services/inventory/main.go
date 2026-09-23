@@ -190,6 +190,15 @@ func run(cfg config.Config, log *slog.Logger, db *store.Store) error {
 		return err
 	}
 	defer orders.Close()
+
+	// A separate group on a separate topic: stock levels and orders are read
+	// independently, so a backlog of one cannot hold up the other.
+	levels, err := consumer.NewStock(db, cfg.KafkaBrokers, cfg.StockGroup, cfg.StockTopic, log)
+	if err != nil {
+		return err
+	}
+	defer levels.Close()
+
 	consumerCtx, stopConsumer := context.WithCancel(context.Background())
 	defer stopConsumer()
 	consumerDone := make(chan struct{})
@@ -197,9 +206,15 @@ func run(cfg config.Config, log *slog.Logger, db *store.Store) error {
 		defer close(consumerDone)
 		orders.Run(consumerCtx)
 	}()
+	levelsDone := make(chan struct{})
+	go func() {
+		defer close(levelsDone)
+		levels.Run(consumerCtx)
+	}()
 
 	log.Info("inventory listening",
-		"grpc", cfg.GRPCAddr, "health", cfg.HealthAddr, "orders_topic", cfg.OrdersTopic)
+		"grpc", cfg.GRPCAddr, "health", cfg.HealthAddr,
+		"orders_topic", cfg.OrdersTopic, "stock_topic", cfg.StockTopic)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
@@ -219,10 +234,14 @@ func run(cfg config.Config, log *slog.Logger, db *store.Store) error {
 	// record its offsets. Cutting it short is safe — the events would simply be
 	// redelivered — but every redelivery is work done twice.
 	stopConsumer()
-	select {
-	case <-consumerDone:
-	case <-time.After(10 * time.Second):
-		log.Warn("the order consumer did not stop in time")
+	for name, done := range map[string]chan struct{}{
+		"order": consumerDone, "stock": levelsDone,
+	} {
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			log.Warn("a consumer did not stop in time", "consumer", name)
+		}
 	}
 	// Finish in-flight calls before closing connections, so a rolling update
 	// does not turn into failed requests.

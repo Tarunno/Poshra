@@ -23,6 +23,11 @@ type Config struct {
 	KafkaBrokers  []string
 	OrdersTopic   string
 	ConsumerGroup string
+
+	// The catalog announces what it lists and how much of it exists; this
+	// service is the one that decides whether it can be sold.
+	StockTopic string
+	StockGroup string
 }
 
 func Load() (Config, error) {
@@ -53,6 +58,8 @@ func Load() (Config, error) {
 		// The group name is the identity of this reader. Change it and Kafka
 		// treats it as a brand new consumer that has seen nothing.
 		ConsumerGroup: envOr("CONSUMER_GROUP", "inventory-order-settler"),
+		StockTopic:    envOr("STOCK_TOPIC", "poshra.catalog.stock.changed.v1"),
+		StockGroup:    envOr("STOCK_GROUP", "inventory-stock-levels"),
 	}, nil
 }
 

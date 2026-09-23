@@ -29,6 +29,8 @@ ORDERS_TOPIC = env_str("ORDERS_TOPIC", "poshra.orders.created.v1")
 # The group name is this reader's identity. Change it and Kafka treats it as a
 # new consumer that has seen nothing, which replays the whole topic.
 SALES_CONSUMER_GROUP = env_str("SALES_CONSUMER_GROUP", "marketplace-sales-readmodel")
+# Where this service announces what it has to sell, for the inventory ledger.
+STOCK_TOPIC = env_str("STOCK_TOPIC", "poshra.catalog.stock.changed.v1")
 
 AUTH_USER_MODEL = "accounts.User"
 

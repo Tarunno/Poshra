@@ -9,6 +9,7 @@ apiVersion: kafka.strimzi.io/v1
 kind: KafkaNodePool
 metadata:
   name: combined
+  namespace: poshra
   labels:
     strimzi.io/cluster: poshra
 spec:
@@ -43,6 +44,7 @@ apiVersion: kafka.strimzi.io/v1
 kind: Kafka
 metadata:
   name: poshra
+  namespace: poshra
   annotations:
     strimzi.io/node-pools: enabled
     strimzi.io/kraft: enabled
@@ -68,6 +70,14 @@ spec:
           - podSelector:
               matchLabels:
                 app.kubernetes.io/name: sales-consumer
+          # The web tier produces stock levels when an artisan saves a listing,
+          # and the reconciler republishes all of them.
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: marketplace
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: stock-reconciler
     config:
       # One broker, so nothing can be replicated further than that. These
       # values must rise with the broker count.
@@ -94,6 +104,7 @@ apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: poshra.orders.created.v1
+  namespace: poshra
   labels:
     strimzi.io/cluster: poshra
 spec:
@@ -105,3 +116,21 @@ spec:
   config:
     retention.ms: "604800000" # a week: long enough to replay after an outage
     cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: poshra.catalog.stock.changed.v1
+  namespace: poshra
+  labels:
+    strimzi.io/cluster: poshra
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    # Each event carries the whole level for one sku, so only the newest one
+    # matters. Compaction keeps the last per key for ever: a consumer joining
+    # later reads the current state of every piece instead of replaying a
+    # year of edits.
+    cleanup.policy: compact
+    min.cleanable.dirty.ratio: "0.1"

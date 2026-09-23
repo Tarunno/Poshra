@@ -53,6 +53,11 @@ spec:
               valueFrom: { secretKeyRef: { name: poshra-jwt, key: JWT_PRIVATE_KEY_B64 } }
             - name: JWT_PUBLIC_KEY_B64
               valueFrom: { secretKeyRef: { name: poshra-jwt, key: JWT_PUBLIC_KEY_B64 } }
+            # Saving a listing announces its stock level to the inventory
+            # ledger. Publishing is best effort: a save never fails because a
+            # broker is unreachable, and the nightly reconciler repairs it.
+            - name: KAFKA_BROKERS
+              value: poshra-kafka-bootstrap:9092
           ports:
             - name: http
               containerPort: 8000

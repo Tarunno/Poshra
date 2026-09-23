@@ -79,12 +79,8 @@ k8s-deploy: ## Apply manifests to the cluster (TAG=<image tag>, default dev)
 	kubectl -n poshra rollout status deploy/marketplace --timeout=180s
 	kubectl -n poshra rollout status deploy/kong --timeout=120s
 
-seed-stock: ## Copy the catalog's stock counts into the inventory service
-	@GATEWAY=$${GATEWAY:-http://$$(kubectl -n poshra get svc kong-proxy -o jsonpath='{.status.loadBalancer.ingress[0].ip}')}; \
-	PAIRS=$$(curl -sf "$$GATEWAY/api/marketplace/products?page_size=200" \
-	  | python3 -c "import sys,json;print(' '.join(f\"{p['id']}={p['stock']}\" for p in json.load(sys.stdin)['results']))"); \
-	test -n "$$PAIRS" || { echo "no products found at $$GATEWAY"; exit 1; }; \
-	kubectl -n poshra exec deploy/inventory -- /inventory set-stock $$PAIRS
+sync-stock: ## Republish every listing's stock level to the inventory ledger
+	kubectl -n poshra exec deploy/marketplace -- python manage.py sync_stock
 
 k8s-migrations: ## Show the result of the last migration run
 	kubectl -n poshra get jobs -l 'app.kubernetes.io/name in (marketplace-migrate,inventory-migrate,checkout-migrate)'

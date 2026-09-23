@@ -33,13 +33,19 @@ func (f *fakeSettler) Commit(_ context.Context, reservationID string) (store.Sta
 	return store.StateCommitted, nil
 }
 
+// newConsumer builds one without a broker: the group loop is what needs Kafka,
+// while the decisions worth testing live in handle and process.
 func newConsumer(settler Settler) *Consumer {
-	return &Consumer{
-		store:        settler,
-		log:          slog.New(slog.NewTextHandler(io.Discard, nil)),
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	consumer := &Consumer{store: settler, log: log}
+	consumer.group = &group{
+		log:          log,
 		retryBackoff: time.Millisecond,
 		maxBackoff:   2 * time.Millisecond,
+		handle:       consumer.handle,
+		terminal:     terminal,
 	}
+	return consumer
 }
 
 func record(payload string) *kgo.Record {
@@ -50,7 +56,7 @@ func TestSettlesTheReservationNamedInTheEvent(t *testing.T) {
 	settler := &fakeSettler{}
 	consumer := newConsumer(settler)
 
-	ok := consumer.process(context.Background(),
+	ok := consumer.group.process(context.Background(),
 		record(`{"order_id":"order-1","reservation_id":"res-1","total_minor":1200}`))
 
 	if !ok {
@@ -70,7 +76,7 @@ func TestADuplicateEventIsHarmless(t *testing.T) {
 	event := record(`{"order_id":"order-1","reservation_id":"res-1"}`)
 
 	for i := 0; i < 2; i++ {
-		if !consumer.process(context.Background(), event) {
+		if !consumer.group.process(context.Background(), event) {
 			t.Fatalf("attempt %d was not marked done", i+1)
 		}
 	}
@@ -90,7 +96,7 @@ func TestUnprocessableEventsAreDroppedNotRetried(t *testing.T) {
 			settler := &fakeSettler{}
 			consumer := newConsumer(settler)
 
-			if !consumer.process(context.Background(), record(payload)) {
+			if !consumer.group.process(context.Background(), record(payload)) {
 				t.Fatal("the record was not marked done")
 			}
 			if len(settler.calls) != 0 {
@@ -106,7 +112,7 @@ func TestASettledReservationIsNotRetried(t *testing.T) {
 	settler := &fakeSettler{errs: []error{store.ErrAlreadySettled}}
 	consumer := newConsumer(settler)
 
-	if !consumer.process(context.Background(), record(`{"reservation_id":"res-1"}`)) {
+	if !consumer.group.process(context.Background(), record(`{"reservation_id":"res-1"}`)) {
 		t.Fatal("the record was not marked done")
 	}
 	if len(settler.calls) != 1 {
@@ -121,7 +127,7 @@ func TestATemporaryFailureIsRetriedUntilItSucceeds(t *testing.T) {
 	settler := &fakeSettler{errs: []error{down, down}}
 	consumer := newConsumer(settler)
 
-	if !consumer.process(context.Background(), record(`{"reservation_id":"res-1"}`)) {
+	if !consumer.group.process(context.Background(), record(`{"reservation_id":"res-1"}`)) {
 		t.Fatal("the record was not marked done")
 	}
 	if len(settler.calls) != 3 {
@@ -138,7 +144,7 @@ func TestShutdownLeavesTheEventUnprocessed(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
 	defer cancel()
 
-	if consumer.process(ctx, record(`{"reservation_id":"res-1"}`)) {
+	if consumer.group.process(ctx, record(`{"reservation_id":"res-1"}`)) {
 		t.Fatal("the record was marked done although it never settled")
 	}
 }
