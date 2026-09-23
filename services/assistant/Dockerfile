@@ -1,31 +1,42 @@
 # syntax=docker/dockerfile:1
 #
 # Built from the services/ directory, like the other Python service.
+
+# ---- build stage: resolve and install locked dependencies into a venv ----
 FROM python:3.13-slim AS builder
+COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /usr/local/bin/uv
 
-COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
-WORKDIR /src/assistant
+# The venv is built at the path it will be used from. A virtualenv is not
+# relocatable — its console scripts hard-code the interpreter in a shebang, so
+# building it elsewhere and copying it yields "no such file or directory" about
+# a python that is not there, which reads like the script is missing.
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PROJECT_ENVIRONMENT=/opt/venv
 
+WORKDIR /app
 COPY assistant/pyproject.toml assistant/uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-install-project
 
+# ---- runtime stage: only the venv and the application code ----
 FROM python:3.13-slim AS runtime
 
-# A numeric user: Kubernetes cannot verify runAsNonRoot for a named one.
-RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin poshra
+RUN groupadd --system --gid 10001 app \
+ && useradd --system --uid 10001 --gid app --no-create-home app
 
-WORKDIR /app
-COPY --from=builder /src/assistant/.venv /app/.venv
-COPY assistant/app ./app
-
-ENV PATH="/app/.venv/bin:$PATH" \
+ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /app
+COPY --from=builder /opt/venv /opt/venv
+COPY assistant/app ./app
 
 USER 10001:10001
 EXPOSE 8000
 
-# One worker per pod: concurrency here is IO-bound and async, so more workers
-# buy nothing and multiply the memory. Scale with replicas instead.
+# One worker per pod: the work here is IO-bound and async, so more workers buy
+# nothing and multiply the memory. Scale with replicas instead.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
