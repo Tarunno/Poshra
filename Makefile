@@ -42,7 +42,7 @@ kong-reload: ## Apply gateway/kong/kong.yaml to the running Kong without a resta
 jwt-keys: ## Print a fresh RSA key pair as base64 env lines (paste into .env)
 	@python3 -c "import base64;from cryptography.hazmat.primitives import serialization as s;from cryptography.hazmat.primitives.asymmetric import rsa;k=rsa.generate_private_key(public_exponent=65537,key_size=2048);priv=k.private_bytes(s.Encoding.PEM,s.PrivateFormat.PKCS8,s.NoEncryption());pub=k.public_key().public_bytes(s.Encoding.PEM,s.PublicFormat.SubjectPublicKeyInfo);print('JWT_PRIVATE_KEY_B64='+base64.b64encode(priv).decode());print('JWT_PUBLIC_KEY_B64='+base64.b64encode(pub).decode())"
 
-k8s-secrets: ## Create namespace + secrets in the cluster (generates random passwords once)
+k8s-secrets: ## Create namespace + generated secrets (passwords and keys, made once)
 	kubectl get ns poshra >/dev/null 2>&1 || kubectl create ns poshra
 	kubectl -n poshra get secret poshra-db >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-db \
 		--from-literal=POSTGRES_SUPERUSER_PASSWORD=$$(openssl rand -hex 24) \
@@ -56,8 +56,6 @@ k8s-secrets: ## Create namespace + secrets in the cluster (generates random pass
 		--from-literal=DATABASE_URL="postgres://checkout:$$(kubectl -n poshra get secret poshra-db -o jsonpath='{.data.CHECKOUT_DB_PASSWORD}' | base64 -d)@postgres:5432/checkout?sslmode=disable"
 	@kubectl -n poshra get secret poshra-inventory >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-inventory \
 		--from-literal=DATABASE_URL="postgres://inventory:$$(kubectl -n poshra get secret poshra-db -o jsonpath='{.data.INVENTORY_DB_PASSWORD}' | base64 -d)@postgres:5432/inventory?sslmode=disable"
-	@kubectl -n poshra get secret poshra-checkout >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-checkout \
-		--from-literal=DATABASE_URL="postgres://checkout:$$(kubectl -n poshra get secret poshra-db -o jsonpath='{.data.CHECKOUT_DB_PASSWORD}' | base64 -d)@postgres:5432/checkout?sslmode=disable"
 	@kubectl -n poshra get secret poshra-jwt >/dev/null 2>&1 || ( \
 		tmp=$$(mktemp -d); \
 		openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out $$tmp/key.pem 2>/dev/null; \
@@ -66,13 +64,16 @@ k8s-secrets: ## Create namespace + secrets in the cluster (generates random pass
 			--from-literal=JWT_PRIVATE_KEY_B64=$$(base64 -w0 < $$tmp/key.pem) \
 			--from-literal=JWT_PUBLIC_KEY_B64=$$(base64 -w0 < $$tmp/pub.pem); \
 		rm -rf $$tmp )
-	@kubectl -n poshra get secret poshra-checkout >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-checkout \
-		--from-literal=DATABASE_URL="postgres://checkout:$$(kubectl -n poshra get secret poshra-db -o jsonpath='{.data.CHECKOUT_DB_PASSWORD}' | base64 -d)@postgres:5432/checkout?sslmode=disable"
-	@kubectl -n poshra get secret poshra-inventory >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-inventory \
-		--from-literal=DATABASE_URL="postgres://inventory:$$(kubectl -n poshra get secret poshra-db -o jsonpath='{.data.INVENTORY_DB_PASSWORD}' | base64 -d)@postgres:5432/inventory?sslmode=disable"
-	@kubectl -n poshra get secret poshra-checkout >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-checkout \
-		--from-literal=DATABASE_URL="postgres://checkout:$$(kubectl -n poshra get secret poshra-db -o jsonpath='{.data.CHECKOUT_DB_PASSWORD}' | base64 -d)@postgres:5432/checkout?sslmode=disable"
 	@kubectl -n poshra get secret
+
+# Separate from k8s-secrets: this one cannot be generated, so it is supplied
+# rather than made, and it is never written to a file in the repo.
+k8s-secret-anthropic: ## Store the Anthropic API key (ANTHROPIC_API_KEY=sk-... make k8s-secret-anthropic)
+	@test -n "$$ANTHROPIC_API_KEY" || { echo "ANTHROPIC_API_KEY is not set"; exit 1; }
+	@kubectl -n poshra create secret generic poshra-anthropic \
+		--from-literal=ANTHROPIC_API_KEY="$$ANTHROPIC_API_KEY" \
+		--dry-run=client -o yaml | kubectl apply -f -
+	@echo "stored; restart the assistant to pick it up: kubectl -n poshra rollout restart deploy/assistant"
 
 k8s-deploy: ## Apply manifests to the cluster (TAG=<image tag>, default dev)
 	cd deploy/k8s/overlays/local && kubectl kustomize . | kubectl apply -f -

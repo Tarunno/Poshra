@@ -17,5 +17,7 @@ images:
     newTag: 159182591b3ad587a050e3b30160f2f84f9c53a2
   - name: ghcr.io/tarunno/poshra/kong
     newTag: 159182591b3ad587a050e3b30160f2f84f9c53a2
+  - name: ghcr.io/tarunno/poshra/assistant
+    newTag: dev
   - name: ghcr.io/tarunno/poshra/checkout
     newTag: 159182591b3ad587a050e3b30160f2f84f9c53a2

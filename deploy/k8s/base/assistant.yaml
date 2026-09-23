@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: assistant
+spec:
+  selector:
+    app.kubernetes.io/name: assistant
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: assistant
+spec:
+  # One replica: every answer is a paid model call, so this scales with cost
+  # rather than with traffic. Concurrency here is async and IO-bound.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: assistant
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: assistant
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: assistant
+          image: ghcr.io/tarunno/poshra/assistant:dev
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom: { secretKeyRef: { name: poshra-anthropic, key: ANTHROPIC_API_KEY } }
+            # Through the gateway, like every other service-to-service call, so
+            # the assistant cannot reach the catalog by a path the storefront
+            # could not.
+            - name: CATALOG_URL
+              value: http://kong-proxy/internal/marketplace
+          ports:
+            - name: http
+              containerPort: 8000
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            # Never checks Anthropic: an outage there must not restart the pod.
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 50m, memory: 192Mi }
+            limits: { memory: 384Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 32Mi }

@@ -54,6 +54,10 @@ spec:
             # property for an endpoint anyone can post to.
             - name: API_WRITE_BASE_URL
               value: http://kong-proxy/api/marketplace
+            # The assistant is the most expensive route on the gateway, so it
+            # goes through the public one with its rate limiter.
+            - name: ASSISTANT_BASE_URL
+              value: http://kong-proxy/api/assistant
           ports:
             - name: http
               containerPort: 3000

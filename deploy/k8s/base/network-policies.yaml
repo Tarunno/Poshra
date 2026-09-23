@@ -82,6 +82,25 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: assistant-accepts-gateway-only
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: assistant
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kong
+        # The node CIDR, so kubelet can run the probes.
+        - ipBlock: { cidr: 192.168.110.0/24 }
+      ports:
+        - port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: postgres-accepts-its-services-only
 spec:
   podSelector:

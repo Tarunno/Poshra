@@ -23,6 +23,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       inventory: ${{ steps.filter.outputs.inventory }}
       checkout: ${{ steps.filter.outputs.checkout }}
+      assistant: ${{ steps.filter.outputs.assistant }}
       deploy: ${{ steps.filter.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +43,8 @@ jobs:
             checkout:
               - 'services/checkout/**'
               - 'services/inventory/gen/**'
+            assistant:
+              - 'services/assistant/**'
             deploy:
               - 'deploy/k8s/**'
 
@@ -61,6 +64,26 @@ jobs:
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      - run: uv run pytest -q
+
+  test-assistant:
+    name: test assistant
+    needs: changes
+    if: needs.changes.outputs.assistant == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/assistant
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      # No API key: the tests replay scripted model responses, so the loop is
+      # covered without paying for it or depending on the network.
       - run: uv run pytest -q
 
   test-gateway:
@@ -132,7 +155,15 @@ jobs:
 
   build:
     name: build ${{ matrix.service }}
-    needs: [changes, test-marketplace, test-gateway, test-inventory, test-checkout]
+    needs:
+      [
+        changes,
+        test-marketplace,
+        test-assistant,
+        test-gateway,
+        test-inventory,
+        test-checkout,
+      ]
     # Run when the needed tests pass or were skipped, but not if one failed.
     if: always() && !contains(needs.*.result, 'failure') && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -153,6 +184,9 @@ jobs:
           - service: checkout
             context: services
             dockerfile: services/checkout/Dockerfile
+          - service: assistant
+            context: services
+            dockerfile: services/assistant/Dockerfile
     steps:
       - uses: actions/checkout@v4
 

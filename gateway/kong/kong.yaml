@@ -98,6 +98,39 @@ services:
               burst: 8
               limit_by: ip
 
+  # The shopping assistant. Every answer is a paid model call, so this is the
+  # most tightly limited route on the gateway and it never retries: a replayed
+  # request is a second bill for an answer nobody read.
+  - name: assistant
+    url: http://assistant:8000
+    connect_timeout: 2000
+    # An answer that calls tools can take the better part of a minute.
+    read_timeout: 90000
+    write_timeout: 90000
+    retries: 0
+    routes:
+      - name: assistant-api
+        paths:
+          - /api/assistant
+        strip_path: true
+        protocols: [http, https]
+        plugins:
+          - name: poshra-identity
+            config:
+              public_key_b64: "{vault://env/poshra-jwt-public-key}"
+              issuer: poshra-marketplace
+              audience: poshra-api
+              access_cookie: poshra_at
+              require_authentication: true
+          - name: poshra-leaky-bucket
+            config:
+              # About one question every five seconds, six in a burst: enough
+              # for a conversation, not enough to run up a bill.
+              rate: 0.2
+              burst: 6
+              limit_by: header
+              header_name: X-User-Id
+
   # Cart and orders. Every endpoint here needs a buyer, so the identity plugin
   # is set to require authentication rather than allow anonymous browsing.
   - name: checkout
