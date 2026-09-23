@@ -268,12 +268,12 @@ func (s *Server) placeOrder(
 			"currency":       currency,
 			"items":          orderItems,
 		},
-		Headers: map[string]string{
+		Headers: traceHeaders(ctx, map[string]string{
 			"event_type": "order.created",
 			// Carries the gateway's correlation id into the event, so a
 			// consumer's logs can be tied back to the request that caused it.
 			"request_id": requestIDFrom(ctx),
-		},
+		}),
 	}
 
 	if err := s.store.CreateOrder(ctx, order, event); err != nil {
