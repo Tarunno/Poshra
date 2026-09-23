@@ -65,6 +65,9 @@ spec:
           - podSelector:
               matchLabels:
                 app.kubernetes.io/name: inventory
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: sales-consumer
     config:
       # One broker, so nothing can be replicated further than that. These
       # values must rise with the broker count.

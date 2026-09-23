@@ -60,3 +60,33 @@ export function formatLeadTime(days: number): string {
   const weeks = Math.round(days / 7);
   return `Made to order · about ${weeks} week${weeks > 1 ? "s" : ""}`;
 }
+
+const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+
+const STEPS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ["year", 365 * 24 * 3600],
+  ["month", 30 * 24 * 3600],
+  ["week", 7 * 24 * 3600],
+  ["day", 24 * 3600],
+  ["hour", 3600],
+  ["minute", 60],
+];
+
+/** "3 hours ago", "yesterday". Rendered per request, so it is never stale. */
+export function formatRelativeTime(iso: string, now = Date.now()): string {
+  const seconds = (new Date(iso).getTime() - now) / 1000;
+  const magnitude = Math.abs(seconds);
+  for (const [unit, size] of STEPS) {
+    if (magnitude >= size)
+      return relative.format(Math.round(seconds / size), unit);
+  }
+  return relative.format(Math.round(seconds), "second");
+}
+
+/** A short day label for chart axes: "14 Sep". */
+export function formatDay(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+  });
+}

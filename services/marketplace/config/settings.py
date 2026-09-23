@@ -19,7 +19,16 @@ INSTALLED_APPS = [
     "rest_framework",
     "accounts",
     "catalog",
+    "sales",
 ]
+
+# Kafka: the sales read model is built from the order stream. Empty here means
+# the consumer refuses to start; the web tier does not need it at all.
+KAFKA_BROKERS = [broker for broker in env_list("KAFKA_BROKERS", default="") if broker]
+ORDERS_TOPIC = env_str("ORDERS_TOPIC", "poshra.orders.created.v1")
+# The group name is this reader's identity. Change it and Kafka treats it as a
+# new consumer that has seen nothing, which replays the whole topic.
+SALES_CONSUMER_GROUP = env_str("SALES_CONSUMER_GROUP", "marketplace-sales-readmodel")
 
 AUTH_USER_MODEL = "accounts.User"
 

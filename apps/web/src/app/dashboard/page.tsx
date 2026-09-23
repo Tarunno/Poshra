@@ -6,11 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KanthaRule, MakersHand } from "@/components/motifs";
 import { CraftPatch } from "@/components/craft-patch";
+import { ActivityFeed } from "@/components/activity-feed";
 import { OrderSummary } from "@/components/order-summary";
+import { SalesChart } from "@/components/sales-chart";
 import { WorkshopPiece } from "@/components/workshop-piece";
 import { getCurrentUser } from "@/lib/api";
 import { listMyProducts } from "@/lib/catalog";
 import { listOrders } from "@/lib/checkout";
+import { getSalesSummary } from "@/lib/sales";
 import { formatMoney } from "@/lib/format";
 
 export const metadata = { title: "Dashboard — Poshra" };
@@ -58,9 +61,10 @@ export default async function DashboardPage() {
 
   // Independent fetches, so they run together: awaiting them in sequence would
   // add the slower one to the faster one for no reason.
-  const [orders, listings] = await Promise.all([
+  const [orders, listings, sales] = await Promise.all([
     listOrders(),
     artisan ? listMyProducts() : Promise.resolve([]),
+    artisan ? getSalesSummary() : Promise.resolve(null),
   ]);
 
   const spent = orders.reduce((total, order) => total + order.total_minor, 0);
@@ -81,6 +85,11 @@ export default async function DashboardPage() {
         needRestocking.length === 1
           ? "one needs restocking"
           : `${needRestocking.length} need restocking`,
+      );
+    }
+    if (sales && sales.pieces_sold > 0) {
+      lines.push(
+        `${sales.pieces_sold} sold for ${formatMoney(sales.revenue_minor, sales.currency)}`,
       );
     }
   }
@@ -143,6 +152,67 @@ export default async function DashboardPage() {
         </Panel>
       )}
 
+      {artisan && sales && sales.pieces_sold > 0 && (
+        <Panel
+          title={`Revenue, last ${sales.window_days} days`}
+          tint="bg-tint-peach"
+        >
+          <div className="mt-4 grid gap-6 lg:grid-cols-[1.7fr_1fr]">
+            <div>
+              {/* The headline is a figure, not a one-bar chart: a single
+                  value reads faster as a number. Proportional digits, not
+                  tabular — equal widths make a large number look gappy, and
+                  nothing is aligned under it. */}
+              <p className="text-4xl font-extrabold sm:text-5xl">
+                {formatMoney(sales.revenue_minor, sales.currency)}
+              </p>
+              <p className="mt-1 text-sm opacity-70">
+                {sales.pieces_sold}{" "}
+                {sales.pieces_sold === 1 ? "piece" : "pieces"} across{" "}
+                {sales.orders} {sales.orders === 1 ? "order" : "orders"}
+              </p>
+              <SalesChart daily={sales.daily} currency={sales.currency} />
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold tracking-wide uppercase opacity-70">
+                Best sellers
+              </h3>
+              <ol className="mt-4 space-y-3">
+                {sales.top_pieces.map((piece, index) => (
+                  <li
+                    key={`${piece.slug ?? piece.title}`}
+                    className="flex gap-3"
+                  >
+                    <span className="text-lg font-extrabold tabular-nums opacity-30">
+                      {index + 1}
+                    </span>
+                    <span className="flex-1">
+                      <span className="block text-sm leading-snug font-semibold">
+                        {piece.slug ? (
+                          <Link
+                            href={`/products/${piece.slug}`}
+                            className="underline-offset-4 hover:underline"
+                          >
+                            {piece.title}
+                          </Link>
+                        ) : (
+                          piece.title
+                        )}
+                      </span>
+                      <span className="block text-xs tabular-nums opacity-70">
+                        {piece.pieces} sold ·{" "}
+                        {formatMoney(piece.revenue_minor, sales.currency)}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </Panel>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         <Panel
           title="Recent orders"
@@ -169,17 +239,13 @@ export default async function DashboardPage() {
             <section className="bg-tint-peach rounded-panel stitched p-6 sm:p-7">
               <p className="bg-background/70 text-ink-peach inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase">
                 <TrendingUp className="size-3.5" aria-hidden />
-                Next
+                Lately
               </p>
               <h2 className="mt-4 text-xl leading-snug font-bold tracking-tight text-balance">
-                Sales and shipping
+                In your workshop
               </h2>
-              <p className="mt-2 text-sm leading-relaxed opacity-75">
-                Which of your pieces sold, to whom, and what is still to be
-                sent. It is assembled from the order events rather than queried
-                from checkout, and is being wired up now.
-              </p>
-              <MakersHand className="mt-5 size-8 opacity-40" />
+              <ActivityFeed sales={sales?.recent ?? []} />
+              <MakersHand className="mt-4 size-7 opacity-30" />
             </section>
           )}
 

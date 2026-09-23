@@ -22,6 +22,7 @@
   --color-ink-rose: var(--ink-rose);
   --color-ink-sky: var(--ink-sky);
   --color-ink-peach: var(--ink-peach);
+  --color-chart-sales: var(--chart-sales);
 
   --radius-panel: 1.75rem;
 }
@@ -42,6 +43,11 @@
   --ink-rose: #a32c60;
   --ink-sky: #1362a8;
   --ink-peach: #9e3f16;
+
+  /* The sales series. Its own token rather than an ink colour: a mark on the
+     chart surface is a different job from text, and each mode's step was
+     validated against that surface rather than flipped from the other. */
+  --chart-sales: #9e3f16;
 }
 
 /* Dark theme is opt-in through shadcn's `.dark` class, never the media query:
@@ -60,6 +66,7 @@
   --ink-rose: #ff9dc0;
   --ink-sky: #8ac4f5;
   --ink-peach: #ffab86;
+  --chart-sales: #cf7345;
 }
 
 @custom-variant dark (&:is(.dark *));

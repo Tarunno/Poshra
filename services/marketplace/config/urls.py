@@ -8,5 +8,6 @@ urlpatterns = [
     path("readyz", readyz, name="readyz"),
     path("", include("accounts.urls")),
     path("", include("catalog.urls")),
+    path("", include("sales.urls")),
     path("admin/", admin.site.urls),
 ]

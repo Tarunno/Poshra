@@ -100,6 +100,9 @@ spec:
               app.kubernetes.io/name: marketplace-migrate
         - podSelector:
             matchLabels:
+              app.kubernetes.io/name: sales-consumer
+        - podSelector:
+            matchLabels:
               app.kubernetes.io/name: inventory
         - podSelector:
             matchLabels:
