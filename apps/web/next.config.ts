@@ -16,6 +16,14 @@ const nextConfig: NextConfig = {
       { protocol: "http", hostname: "192.168.110.201", pathname: "/media/**" },
       { protocol: "http", hostname: "localhost", pathname: "/media/**" },
     ],
+    // Next refuses to optimise images whose hostname resolves to a private
+    // address, because an image optimiser that fetches arbitrary URLs is an
+    // SSRF engine pointed at the internal network. Here the gateway *is* a
+    // private address, and the patterns above already pin what may be fetched
+    // to one host and one path prefix — our own public media route — so the
+    // reachable set is not widened by allowing it. A deployment with a public
+    // media hostname would not need this.
+    dangerouslyAllowLocalIP: true,
   },
   /* config options here */
 };

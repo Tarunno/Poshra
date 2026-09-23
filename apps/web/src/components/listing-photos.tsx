@@ -8,6 +8,7 @@ import { AlertCircle, ImagePlus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhotoDropzone } from "@/components/photo-dropzone";
 import {
   deleteImageAction,
   uploadImageAction,
@@ -108,15 +109,8 @@ export function ListingPhotos({
           <input type="hidden" name="slug" value={slug} />
 
           <div className="space-y-2">
-            <Label htmlFor="file">Choose a photograph</Label>
-            <Input
-              id="file"
-              name="file"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              required
-              className="bg-background h-11 rounded-xl border-0 px-4 py-2.5"
-            />
+            <Label htmlFor="file">Add a photograph</Label>
+            <PhotoDropzone name="file" />
             <p className="text-xs opacity-60">
               JPEG, PNG or WebP, up to 6 MB. Location data is removed when it is
               stored.
