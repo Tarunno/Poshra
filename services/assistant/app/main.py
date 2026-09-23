@@ -51,7 +51,10 @@ async def lifespan(app: FastAPI):
     app.state.assistant = Assistant(
         config, CatalogClient(config.catalog_url, config.request_timeout)
     )
-    log.info("assistant ready", extra={"model": config.model})
+    log.info(
+        "assistant ready",
+        extra={"provider": config.provider, "model": config.model},
+    )
     yield
 
 

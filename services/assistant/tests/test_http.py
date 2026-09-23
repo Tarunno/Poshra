@@ -7,18 +7,20 @@ from app.config import Config
 from app.main import MAX_MESSAGE_CHARS, app
 
 CONFIG = Config(
-    anthropic_api_key="unused",
+    provider="gemini",
+    api_key="unused",
+    model="test-model",
     catalog_url="http://catalog",
-    model="claude-opus-5",
     max_tokens=512,
     max_tool_calls=2,
     request_timeout=1.0,
+    llm_timeout=5.0,
 )
 
 
 class StubAssistant(Assistant):
     def __init__(self) -> None:
-        super().__init__(CONFIG, CatalogClient(CONFIG.catalog_url, 1.0), client=object())
+        super().__init__(CONFIG, CatalogClient(CONFIG.catalog_url, 1.0), provider=object())
         self.seen: list[list[dict]] = []
 
     async def reply(self, messages):
@@ -30,7 +32,8 @@ class StubAssistant(Assistant):
 def client(monkeypatch):
     # Startup reads real configuration and refuses to run without it, which is
     # the behaviour we want in production; here it just needs satisfying.
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.setenv("CATALOG_URL", CONFIG.catalog_url)
 
     stub = StubAssistant()

@@ -1,18 +1,19 @@
-from types import SimpleNamespace
-
 import pytest
 
-from app.assistant import MAX_RESULTS, Assistant, _search_params
+from app.assistant import GAVE_UP, MAX_RESULTS, Assistant, _search_params
 from app.catalog import summarise
 from app.config import Config
+from app.llm import ToolCall, Turn
 
 CONFIG = Config(
-    anthropic_api_key="unused",
+    provider="gemini",
+    api_key="unused",
+    model="test-model",
     catalog_url="http://catalog",
-    model="claude-opus-5",
     max_tokens=1024,
     max_tool_calls=3,
     request_timeout=1.0,
+    llm_timeout=5.0,
 )
 
 
@@ -49,25 +50,36 @@ class FakeCatalog:
         return [{"slug": "nakshi-kantha", "name": "Nakshi kantha", "summary": "Quilts"}]
 
 
-def text_block(text: str):
-    return SimpleNamespace(type="text", text=text)
+class FakeConversation:
+    """Replays scripted turns and records the results it was handed back."""
+
+    def __init__(self, turns: list[Turn]) -> None:
+        self._turns = list(turns)
+        self.results_seen: list[list] = []
+
+    async def next_turn(self) -> Turn:
+        if not self._turns:
+            return Turn(text="(ran out of script)")
+        return self._turns.pop(0)
+
+    def add_tool_results(self, results) -> None:
+        self.results_seen.append(list(results))
 
 
-def tool_block(name: str, arguments: dict, block_id: str = "t1"):
-    return SimpleNamespace(type="tool_use", name=name, input=arguments, id=block_id)
+class FakeProvider:
+    name = "fake"
+
+    def __init__(self, turns: list[Turn]) -> None:
+        self.conversation = FakeConversation(turns)
+        self.started_with: dict = {}
+
+    def start(self, *, system, tools, messages):
+        self.started_with = {"system": system, "tools": tools, "messages": messages}
+        return self.conversation
 
 
-class FakeClient:
-    """Replays a scripted sequence of model responses and records what it was sent."""
-
-    def __init__(self, responses: list[SimpleNamespace]) -> None:
-        self._responses = list(responses)
-        self.requests: list[dict] = []
-        self.messages = SimpleNamespace(create=self._create)
-
-    async def _create(self, **kwargs):
-        self.requests.append(kwargs)
-        return self._responses.pop(0)
+def call(name: str, arguments: dict | None = None) -> ToolCall:
+    return ToolCall(name=name, arguments=arguments or {}, id=f"{name}-0")
 
 
 # --- the argument mapping -----------------------------------------------------
@@ -96,104 +108,106 @@ def test_a_summary_leaves_out_the_prose():
     assert "description" not in trimmed
 
 
-# --- the loop -----------------------------------------------------------------
+# --- the loop, whichever model is behind it -----------------------------------
 
 
-async def test_tool_results_go_back_in_one_user_message():
+async def test_a_tool_call_is_run_and_its_result_handed_back():
     catalog = FakeCatalog([product("a", "One"), product("b", "Two")])
-    client = FakeClient(
+    provider = FakeProvider(
         [
-            SimpleNamespace(
-                stop_reason="tool_use",
-                content=[tool_block("search_products", {"query": "kantha"})],
-            ),
-            SimpleNamespace(stop_reason="end_turn", content=[text_block("Here are two pieces.")]),
+            Turn(tool_calls=(call("search_products", {"query": "kantha"}),)),
+            Turn(text="Here are two pieces."),
         ]
     )
-    assistant = Assistant(CONFIG, catalog, client)
 
-    answer = await assistant.reply([{"role": "user", "content": "show me kantha"}])
+    answer = await Assistant(CONFIG, catalog, provider).reply(
+        [{"role": "user", "content": "show me kantha"}]
+    )
 
     assert answer["reply"] == "Here are two pieces."
     assert [p["slug"] for p in answer["products"]] == ["a", "b"]
-    # Splitting results across messages teaches the model to stop asking for
-    # several things at once, so they must arrive together.
-    last_sent = client.requests[-1]["messages"][-1]
-    assert last_sent["role"] == "user"
-    assert all(block["type"] == "tool_result" for block in last_sent["content"])
+    assert catalog.searches[0]["q"] == "kantha"
+    # Results go back in one batch, matched to the call that asked for them.
+    handed_back = provider.conversation.results_seen[0]
+    assert len(handed_back) == 1
+    assert handed_back[0].call.name == "search_products"
 
 
 async def test_a_failing_catalog_is_reported_to_the_model_not_hidden():
-    catalog = FakeCatalog(fail=True)
-    client = FakeClient(
+    provider = FakeProvider(
         [
-            SimpleNamespace(
-                stop_reason="tool_use", content=[tool_block("search_products", {"query": "x"})]
-            ),
-            SimpleNamespace(
-                stop_reason="end_turn",
-                content=[text_block("I could not reach the catalogue just now.")],
-            ),
+            Turn(tool_calls=(call("search_products", {"query": "x"}),)),
+            Turn(text="I could not reach the catalogue just now."),
         ]
     )
-    assistant = Assistant(CONFIG, catalog, client)
 
-    answer = await assistant.reply([{"role": "user", "content": "anything"}])
+    answer = await Assistant(CONFIG, FakeCatalog(fail=True), provider).reply(
+        [{"role": "user", "content": "anything"}]
+    )
 
     # The model must be told the tool failed, so it can say so instead of
     # inventing stock.
-    result = client.requests[-1]["messages"][-1]["content"][0]["content"]
-    assert "could not be reached" in result
+    result = provider.conversation.results_seen[0][0].content
+    assert "could not be reached" in result["error"]
     assert answer["products"] == []
 
 
 async def test_the_tool_budget_stops_a_runaway_conversation():
     catalog = FakeCatalog([product("a", "One")])
     # Always asks for another search, never finishes.
-    responses = [
-        SimpleNamespace(
-            stop_reason="tool_use",
-            content=[tool_block("search_products", {"query": f"try {i}"}, f"t{i}")],
-        )
-        for i in range(10)
-    ]
-    assistant = Assistant(CONFIG, catalog, FakeClient(responses))
+    provider = FakeProvider(
+        [Turn(tool_calls=(call("search_products", {"query": f"try {i}"}),)) for i in range(10)]
+    )
 
-    answer = await assistant.reply([{"role": "user", "content": "hmm"}])
+    answer = await Assistant(CONFIG, catalog, provider).reply([{"role": "user", "content": "hmm"}])
 
     # Every iteration costs money, so the loop is capped rather than trusted.
+    assert answer["reply"] == GAVE_UP
     assert answer["tool_calls"] == CONFIG.max_tool_calls + 1
     assert len(catalog.searches) == CONFIG.max_tool_calls
-    assert "narrow" in answer["reply"]
 
 
 async def test_only_the_pieces_the_tools_returned_come_back():
     many = [product(f"p{i}", f"Piece {i}") for i in range(12)]
-    catalog = FakeCatalog(many)
-    client = FakeClient(
-        [
-            SimpleNamespace(stop_reason="tool_use", content=[tool_block("search_products", {})]),
-            SimpleNamespace(stop_reason="end_turn", content=[text_block("Some pieces.")]),
-        ]
+    provider = FakeProvider(
+        [Turn(tool_calls=(call("search_products"),)), Turn(text="Some pieces.")]
     )
 
-    answer = await Assistant(CONFIG, catalog, client).reply(
+    answer = await Assistant(CONFIG, FakeCatalog(many), provider).reply(
         [{"role": "user", "content": "everything"}]
     )
 
     assert len(answer["products"]) == MAX_RESULTS
 
 
+async def test_an_unknown_tool_is_reported_rather_than_crashing():
+    provider = FakeProvider([Turn(tool_calls=(call("make_me_a_sandwich"),)), Turn(text="No.")])
+
+    await Assistant(CONFIG, FakeCatalog(), provider).reply([{"role": "user", "content": "hi"}])
+
+    assert "no tool called" in provider.conversation.results_seen[0][0].content["error"]
+
+
 @pytest.mark.parametrize("tool", ["list_crafts", "search_products"])
 async def test_both_tools_are_reachable(tool):
-    catalog = FakeCatalog([product("a", "One")])
-    client = FakeClient(
-        [
-            SimpleNamespace(stop_reason="tool_use", content=[tool_block(tool, {})]),
-            SimpleNamespace(stop_reason="end_turn", content=[text_block("Done.")]),
-        ]
-    )
+    provider = FakeProvider([Turn(tool_calls=(call(tool),)), Turn(text="Done.")])
 
-    answer = await Assistant(CONFIG, catalog, client).reply([{"role": "user", "content": "hi"}])
+    answer = await Assistant(CONFIG, FakeCatalog([product("a", "One")]), provider).reply(
+        [{"role": "user", "content": "hi"}]
+    )
     assert answer["tool_calls"] == 1
     assert answer["reply"] == "Done."
+
+
+async def test_the_provider_is_given_the_prompt_and_both_tools():
+    provider = FakeProvider([Turn(text="hi")])
+
+    await Assistant(CONFIG, FakeCatalog(), provider).reply([{"role": "user", "content": "hello"}])
+
+    # The prompt and the tools are written once and handed to whichever model
+    # is configured — that is the whole point of the seam.
+    assert "Poshra" in provider.started_with["system"]
+    assert [tool.name for tool in provider.started_with["tools"]] == [
+        "search_products",
+        "list_crafts",
+    ]

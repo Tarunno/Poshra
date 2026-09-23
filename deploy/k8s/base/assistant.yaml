@@ -35,8 +35,11 @@ spec:
         - name: assistant
           image: ghcr.io/tarunno/poshra/assistant:dev
           env:
-            - name: ANTHROPIC_API_KEY
-              valueFrom: { secretKeyRef: { name: poshra-anthropic, key: ANTHROPIC_API_KEY } }
+            # Which model answers is a deployment decision, not a code change.
+            - name: LLM_PROVIDER
+              value: gemini
+            - name: GEMINI_API_KEY
+              valueFrom: { secretKeyRef: { name: poshra-llm, key: GEMINI_API_KEY } }
             # Through the gateway, like every other service-to-service call, so
             # the assistant cannot reach the catalog by a path the storefront
             # could not.

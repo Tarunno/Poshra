@@ -75,11 +75,13 @@ k8s-secrets: ## Create namespace + generated secrets (passwords and keys, made o
 		--from-literal=MEDIA_ACCESS_KEY=poshra \
 		--from-literal=MEDIA_SECRET_KEY=$$(openssl rand -hex 24)
 
-# Separate from k8s-secrets: this one cannot be generated, so it is supplied
-# rather than made, and it is never written to a file in the repo.
-k8s-secret-anthropic: ## Store the Anthropic API key (ANTHROPIC_API_KEY=sk-... make k8s-secret-anthropic)
-	@test -n "$$ANTHROPIC_API_KEY" || { echo "ANTHROPIC_API_KEY is not set"; exit 1; }
-	@kubectl -n poshra create secret generic poshra-anthropic \
+# Separate from k8s-secrets: these cannot be generated, so they are supplied
+# rather than made, and never written to a file in the repo. Both keys live in
+# one secret so switching LLM_PROVIDER needs no other change.
+k8s-secret-llm: ## Store the model API keys (GEMINI_API_KEY=... ANTHROPIC_API_KEY=... make k8s-secret-llm)
+	@test -n "$$GEMINI_API_KEY$$ANTHROPIC_API_KEY" || { echo "set GEMINI_API_KEY and/or ANTHROPIC_API_KEY"; exit 1; }
+	@kubectl -n poshra create secret generic poshra-llm \
+		--from-literal=GEMINI_API_KEY="$$GEMINI_API_KEY" \
 		--from-literal=ANTHROPIC_API_KEY="$$ANTHROPIC_API_KEY" \
 		--dry-run=client -o yaml | kubectl apply -f -
 	@echo "stored; restart the assistant to pick it up: kubectl -n poshra rollout restart deploy/assistant"
