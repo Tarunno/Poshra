@@ -67,7 +67,10 @@ services:
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       # Custom plugins are loaded in addition to the bundled ones.
-      KONG_PLUGINS: bundled,poshra-leaky-bucket
+      KONG_PLUGINS: bundled,poshra-leaky-bucket,poshra-identity
+      # Resolved by Kong's env vault from {vault://env/poshra-jwt-public-key}.
+      # Only the public half ever reaches the gateway.
+      POSHRA_JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_B64:?set in .env (make jwt-keys)}
       KONG_DNS_RESOLVER: 127.0.0.11
       # Shared memory for bucket state and per-key locks, visible to all workers.
       KONG_NGINX_HTTP_LUA_SHARED_DICT: poshra_leaky_bucket 10m; lua_shared_dict poshra_leaky_bucket_locks 1m

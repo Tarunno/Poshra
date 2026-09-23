@@ -45,6 +45,12 @@ spec:
               value: /dev/stderr
             - name: KONG_NGINX_WORKER_PROCESSES
               value: "2"
+            # Resolved by Kong's env vault from {vault://env/poshra-jwt-public-key}.
+            # The gateway verifies signatures; only marketplace holds the
+            # private key.
+            - name: POSHRA_JWT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef: { name: poshra-jwt, key: JWT_PUBLIC_KEY_B64 }
           ports:
             - name: proxy
               containerPort: 8000

@@ -19,7 +19,6 @@ from __future__ import annotations
 import secrets
 
 from django.conf import settings
-from jwt import PyJWTError
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -27,9 +26,9 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from accounts import services
-from accounts.models import User
+from accounts.identity import current_user
 from accounts.serializers import LoginSerializer, RegisterSerializer, UserSerializer
-from accounts.tokens import decode_access_token, public_jwk
+from accounts.tokens import public_jwk
 
 CSRF_HEADER = "X-CSRF-Token"
 
@@ -161,27 +160,12 @@ class LogoutView(APIView):
 class MeView(APIView):
     """The current user.
 
-    Identity comes from the trusted ``X-User-Id`` header that the gateway
-    injects after verifying the token. Until that plugin exists, fall back to
-    verifying the access cookie here.
+    Identity comes from the trusted header the gateway injects after verifying
+    the token; this view never parses a token itself.
     """
 
     def get(self, request: Request) -> Response:
-        user_id = request.headers.get("X-User-Id")
-        if not user_id:
-            token = request.COOKIES.get(settings.ACCESS_COOKIE_NAME)
-            if not token:
-                return Response(
-                    {"detail": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED
-                )
-            try:
-                user_id = decode_access_token(token)["sub"]
-            except PyJWTError:
-                return Response(
-                    {"detail": "Invalid or expired token"}, status=status.HTTP_401_UNAUTHORIZED
-                )
-
-        user = User.objects.filter(id=user_id, is_active=True).first()
+        user = current_user(request)
         if user is None:
             return Response({"detail": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
         return Response(UserSerializer(user).data)

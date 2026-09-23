@@ -11,27 +11,55 @@ services:
     # Never replay requests: POSTs (login, orders) are not safe to send twice.
     retries: 0
     routes:
-      # Public edge: browsers and external agents. Rate limited per client.
+      # Credentials. Deliberately exempt from identity checks: you cannot
+      # present a valid access token before you have one, and refresh runs
+      # precisely when the access token has expired. Limited hard instead,
+      # because this is where credential stuffing lands.
+      - name: marketplace-auth
+        paths:
+          - /api/marketplace/auth
+        strip_path: true
+        protocols: [http, https]
+        plugins:
+          - name: poshra-leaky-bucket
+            config:
+              rate: 1
+              burst: 8
+              limit_by: ip
+
+      # Public edge: browsers and external agents. Authentication is optional
+      # so anonymous visitors can browse; when a token is present it is
+      # verified here and the services receive a trusted identity.
       - name: marketplace-api
         paths:
           - /api/marketplace
         strip_path: true
         protocols: [http, https]
         plugins:
-          # Leaky bucket (GCRA): a steady 5 req/s per client IP with bursts of
-          # up to 10. Unlike a fixed window, a client cannot double its rate at
-          # a window boundary. Plugin: gateway/kong/plugins/poshra-leaky-bucket
+          - name: poshra-identity
+            config:
+              public_key_b64: "{vault://env/poshra-jwt-public-key}"
+              issuer: poshra-marketplace
+              audience: poshra-api
+              # Must match ACCESS_COOKIE_NAME in the marketplace service.
+              # Becomes "__Host-poshra_at" once TLS is in front: that prefix
+              # requires the Secure attribute, which plain HTTP cannot set.
+              access_cookie: poshra_at
+          # Rate limit per signed-in user where we know who they are, falling
+          # back to the client address for anonymous traffic. Without this a
+          # household behind one address would share a single budget.
           - name: poshra-leaky-bucket
             config:
               rate: 5
               burst: 10
-              limit_by: ip
+              limit_by: header
+              header_name: X-User-Id
 
       # Internal path for server-side rendering. One page render makes several
       # API calls, and every pod shares one source address, so a per-client
       # limit would throttle the storefront itself. Still passes through the
-      # gateway for auth, tracing and one place to change policy; reachable
-      # only from inside the cluster network.
+      # gateway for identity and tracing; reachable only from inside the
+      # cluster network.
       - name: marketplace-internal
         paths:
           - /internal/marketplace
@@ -43,6 +71,15 @@ services:
               allow:
                 - 10.244.0.0/16   # Kubernetes pod network
                 - 172.16.0.0/12   # Docker Compose networks
+          - name: poshra-identity
+            config:
+              public_key_b64: "{vault://env/poshra-jwt-public-key}"
+              issuer: poshra-marketplace
+              audience: poshra-api
+              # Must match ACCESS_COOKIE_NAME in the marketplace service.
+              # Becomes "__Host-poshra_at" once TLS is in front: that prefix
+              # requires the Secure attribute, which plain HTTP cannot set.
+              access_cookie: poshra_at
 
   # The Next.js frontend. `web` resolves to the Compose service locally and to
   # the Kubernetes Service in the cluster, so one config works in both places.

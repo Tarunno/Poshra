@@ -6,6 +6,7 @@ FROM kong:3.9.3
 
 USER root
 COPY plugins/poshra-leaky-bucket /usr/local/share/lua/5.1/kong/plugins/poshra-leaky-bucket
+COPY plugins/poshra-identity /usr/local/share/lua/5.1/kong/plugins/poshra-identity
 COPY kong.yaml /kong/kong.yaml
 RUN chown -R kong:0 /kong && chmod -R g=u /kong
 
@@ -16,5 +17,5 @@ USER kong
 ENV KONG_DNS_ORDER=A,CNAME,SRV,LAST \
     KONG_DATABASE=off \
     KONG_DECLARATIVE_CONFIG=/kong/kong.yaml \
-    KONG_PLUGINS=bundled,poshra-leaky-bucket \
+    KONG_PLUGINS=bundled,poshra-leaky-bucket,poshra-identity \
     KONG_NGINX_HTTP_LUA_SHARED_DICT="poshra_leaky_bucket 10m; lua_shared_dict poshra_leaky_bucket_locks 1m"

@@ -1,31 +1,10 @@
 from rest_framework import permissions
 from rest_framework.request import Request
 
-from accounts.models import Role, User
+from accounts.identity import current_user
+from accounts.models import Role
 
-
-def current_user(request: Request) -> User | None:
-    """The caller, from the identity header the gateway injects.
-
-    Services never parse tokens: the gateway verifies the signature and passes
-    a trusted user id on the internal network. Until that plugin exists the
-    access cookie is verified here as a fallback.
-    """
-    user_id = request.headers.get("X-User-Id")
-    if not user_id:
-        from django.conf import settings
-        from jwt import PyJWTError
-
-        from accounts.tokens import decode_access_token
-
-        token = request.COOKIES.get(settings.ACCESS_COOKIE_NAME)
-        if not token:
-            return None
-        try:
-            user_id = decode_access_token(token)["sub"]
-        except PyJWTError:
-            return None
-    return User.objects.filter(id=user_id, is_active=True).first()
+__all__ = ["ReadOnlyOrArtisanOwner", "current_user"]
 
 
 class ReadOnlyOrArtisanOwner(permissions.BasePermission):

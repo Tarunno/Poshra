@@ -37,6 +37,9 @@ configMapGenerator:
       # The LAN gateway is plain HTTP for now, so Secure cookies would never be
       # stored by the browser. This must be true once TLS is in front.
       - AUTH_COOKIE_SECURE=false
+      # Kong verifies tokens and injects the identity header, so the service
+      # has no second validation path of its own.
+      - AUTH_COOKIE_FALLBACK=false
 
 images:
   - name: ghcr.io/tarunno/poshra/marketplace

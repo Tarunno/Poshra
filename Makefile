@@ -34,6 +34,7 @@ kong-validate: ## Validate gateway/kong/kong.yaml
 
 kong-test: ## Run Kong plugin unit tests
 	$(COMPOSE) run --rm --no-deps --entrypoint resty kong /kong/tests/gcra_test.lua
+	$(COMPOSE) run --rm --no-deps --entrypoint resty kong /kong/tests/claims_test.lua
 
 kong-reload: ## Apply gateway/kong/kong.yaml to the running Kong without a restart
 	curl -sf -X POST http://127.0.0.1:$${KONG_ADMIN_HOST_PORT:-8001}/config -F config=@gateway/kong/kong.yaml > /dev/null && echo "kong config reloaded"

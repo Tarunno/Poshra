@@ -145,3 +145,9 @@ REFRESH_COOKIE_PATH = env_str("REFRESH_COOKIE_PATH", "/api/marketplace/auth")
 # Secure cookies require HTTPS. The LAN cluster is plain HTTP for now, so this
 # is configurable; it must be true anywhere real.
 AUTH_COOKIE_SECURE = env_bool("AUTH_COOKIE_SECURE", default=True)
+
+# Identity comes from the gateway, which verifies the signature once. The
+# cookie fallback is for running this service without a gateway in front; it is
+# off in the cluster so there is only one token-validation path.
+AUTH_TRUST_GATEWAY_HEADER = env_bool("AUTH_TRUST_GATEWAY_HEADER", default=True)
+AUTH_COOKIE_FALLBACK = env_bool("AUTH_COOKIE_FALLBACK", default=True)
