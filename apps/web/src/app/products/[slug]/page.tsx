@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { BadgeCheck, MapPin, Package, Ruler } from "lucide-react";
+import { AddToCart } from "@/components/add-to-cart";
 import { CraftTile } from "@/components/craft-tile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -179,13 +180,23 @@ export default async function ProductPage({ params }: { params: Params }) {
             </div>
           </dl>
 
-          <div className="flex flex-wrap gap-3 pt-2">
-            <Button size="lg" className="rounded-full px-7" disabled>
-              {product.in_stock ? "Add to cart" : "Sold out"}
-            </Button>
-            <Badge variant="outline" className="self-center rounded-full">
-              Checkout coming soon
-            </Badge>
+          <div className="pt-2">
+            {product.in_stock ? (
+              <AddToCart
+                skuId={product.id}
+                back={`/products/${product.slug}`}
+                max={product.stock}
+              />
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                <Button size="lg" className="rounded-full px-7" disabled>
+                  Sold out
+                </Button>
+                <Badge variant="outline" className="self-center rounded-full">
+                  Ask about a commission
+                </Badge>
+              </div>
+            )}
           </div>
 
           <KanthaRule className="h-4 w-full opacity-50" />

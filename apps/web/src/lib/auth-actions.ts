@@ -10,6 +10,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { safePath } from "./safe-path";
+
 const API_BASE =
   process.env.API_BASE_URL ?? "http://localhost:8080/api/marketplace";
 
@@ -57,7 +59,9 @@ export async function loginAction(
     return { error: body.detail ?? "Could not sign in." };
   }
   await storeCookies(response);
-  redirect("/dashboard");
+  // Back to whatever the buyer was doing — a cart, a product — or the
+  // dashboard. The value is user input, so it is checked before it is used.
+  redirect(safePath(String(formData.get("next") ?? ""), "/dashboard"));
 }
 
 export async function registerAction(

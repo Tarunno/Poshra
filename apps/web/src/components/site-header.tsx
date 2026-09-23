@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PoshraLogo } from "@/components/logo";
@@ -6,7 +7,13 @@ import { KanthaRule } from "@/components/motifs";
 import { UserMenu } from "@/components/user-menu";
 import type { User } from "@/lib/api";
 
-export function SiteHeader({ user }: { user: User | null }) {
+export function SiteHeader({
+  user,
+  cartCount = 0,
+}: {
+  user: User | null;
+  cartCount?: number;
+}) {
   return (
     <header className="bg-tint-saffron/60 sticky top-0 z-40 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4">
@@ -20,6 +27,22 @@ export function SiteHeader({ user }: { user: User | null }) {
           </Button>
           {user ? (
             <>
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="relative rounded-full"
+              >
+                <Link href="/cart" aria-label={`Cart, ${cartCount} items`}>
+                  <ShoppingBag className="size-4" aria-hidden />
+                  <span className="hidden sm:inline">Cart</span>
+                  {cartCount > 0 && (
+                    <span className="bg-foreground text-background grid size-5 place-items-center rounded-full text-[0.7rem] font-bold tabular-nums">
+                      {cartCount}
+                    </span>
+                  )}
+                </Link>
+              </Button>
               {user.role === "artisan" && (
                 <Badge
                   variant="secondary"

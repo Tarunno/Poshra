@@ -44,6 +44,11 @@ spec:
             # frontend cannot bypass auth, rate limiting or tracing.
             - name: API_BASE_URL
               value: http://kong-proxy/internal/marketplace
+            # The cart needs a signed-in buyer, so it uses the public route
+            # rather than the internal one: that is where the gateway verifies
+            # the session cookie and injects the identity header.
+            - name: CHECKOUT_BASE_URL
+              value: http://kong-proxy/api/checkout
           ports:
             - name: http
               containerPort: 3000

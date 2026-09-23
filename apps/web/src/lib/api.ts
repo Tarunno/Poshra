@@ -4,6 +4,7 @@
  * Every call goes through Kong, never straight to the service. The gateway owns
  * auth, rate limiting and tracing, so the frontend must not be able to skip it.
  */
+import { cache } from "react";
 import { cookies } from "next/headers";
 
 const API_BASE =
@@ -33,8 +34,13 @@ export async function apiFetch(
   });
 }
 
-/** The current user, or null when signed out. Never throws. */
-export async function getCurrentUser(): Promise<User | null> {
+/**
+ * The current user, or null when signed out. Never throws.
+ *
+ * Cached for the duration of one render: the layout and the page below it both
+ * ask who the visitor is, and the gateway should only be told once.
+ */
+export const getCurrentUser = cache(async (): Promise<User | null> => {
   try {
     const response = await apiFetch("/users/me");
     if (!response.ok) return null;
@@ -42,4 +48,4 @@ export async function getCurrentUser(): Promise<User | null> {
   } catch {
     return null;
   }
-}
+});

@@ -6,8 +6,13 @@ import { getCurrentUser } from "@/lib/api";
 
 export const metadata = { title: "Sign in — Poshra" };
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
   if (await getCurrentUser()) redirect("/dashboard");
+  const { next } = await searchParams;
 
   return (
     <div className="bg-tint-lilac rounded-panel stitched w-full p-7 sm:p-9">
@@ -17,13 +22,15 @@ export default async function LoginPage() {
       </p>
 
       <div className="mt-7">
-        <AuthForm action={loginAction} submitLabel="Sign in" />
+        <AuthForm action={loginAction} submitLabel="Sign in" next={next} />
       </div>
 
       <p className="mt-7 text-center text-sm opacity-70">
         New here?{" "}
         <Link
-          href="/register"
+          href={
+            next ? `/register?next=${encodeURIComponent(next)}` : "/register"
+          }
           className="font-semibold underline underline-offset-4"
         >
           Create an account

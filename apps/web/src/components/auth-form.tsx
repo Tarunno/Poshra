@@ -65,14 +65,23 @@ type Props = {
   submitLabel: string;
   showName?: boolean;
   showRole?: boolean;
+  /** Where to go after signing in, when the visitor was sent here mid-task. */
+  next?: string;
 };
 
-export function AuthForm({ action, submitLabel, showName, showRole }: Props) {
+export function AuthForm({
+  action,
+  submitLabel,
+  showName,
+  showRole,
+  next,
+}: Props) {
   const [state, formAction] = useActionState(action, {} as AuthState);
   const [visible, setVisible] = useState(false);
 
   return (
     <form action={formAction} className="space-y-5">
+      {next && <input type="hidden" name="next" value={next} />}
       {state?.error && (
         <Alert variant="destructive" className="rounded-2xl">
           <AlertCircle className="size-4" />
