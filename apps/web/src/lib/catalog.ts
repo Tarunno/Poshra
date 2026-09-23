@@ -12,6 +12,8 @@
  * rate limiting or tracing.
  */
 
+import { apiFetch } from "./api";
+
 const API_BASE =
   process.env.API_BASE_URL ?? "http://localhost:8080/api/marketplace";
 
@@ -150,6 +152,20 @@ export async function getProduct(slug: string): Promise<Product | null> {
     if (error instanceof CatalogError && error.status === 404) return null;
     throw error;
   }
+}
+
+/**
+ * The signed-in artisan's own listings, drafts included.
+ *
+ * Deliberately on the session-carrying path rather than `publicFetch`: the
+ * answer depends on who is asking, so caching it would hand one artisan's
+ * drafts to the next visitor.
+ */
+export async function listMyProducts(): Promise<Product[]> {
+  const response = await apiFetch("/products?mine=true&page_size=100");
+  if (!response.ok) return [];
+  const body = (await response.json()) as Page<Product>;
+  return body.results;
 }
 
 export async function getArtisan(slug: string): Promise<Artisan | null> {

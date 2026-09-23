@@ -108,6 +108,36 @@ def test_an_artisan_sees_their_own_drafts(client, artisan, craft):
     assert client.get(PRODUCTS).json()["count"] == 1
 
 
+def test_mine_returns_only_the_callers_listings(client, artisan, other_artisan, craft, product):
+    Product.objects.create(
+        artisan=other_artisan,
+        craft=craft,
+        title="Someone else's work",
+        price_minor=1000,
+        stock=1,
+        status=ProductStatus.PUBLISHED,
+    )
+    sign_in(client, artisan.user.email)
+
+    body = client.get(f"{PRODUCTS}?mine=true").json()
+    assert body["count"] == 1
+    assert body["results"][0]["title"] == product.title
+
+
+def test_mine_includes_the_artisans_own_drafts(client, artisan, craft, product):
+    Product.objects.create(
+        artisan=artisan, craft=craft, title="Still on the loom", price_minor=1000, stock=1
+    )
+    sign_in(client, artisan.user.email)
+    assert client.get(f"{PRODUCTS}?mine=true").json()["count"] == 2
+
+
+def test_mine_returns_nothing_to_a_stranger(client, artisan, craft, product):
+    # Without a session there is no "mine"; answering with the whole catalogue
+    # would leak every artisan's drafts to anyone who guessed the parameter.
+    assert client.get(f"{PRODUCTS}?mine=true").json()["count"] == 0
+
+
 def test_filter_by_craft_and_price_range(client, artisan, craft, product):
     cheap = Craft.objects.create(slug="jute", name="Jute craft")
     Product.objects.create(

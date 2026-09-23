@@ -150,6 +150,14 @@ class ProductViewSet(viewsets.ModelViewSet):
         params = self.request.query_params
         queryset = filter_products(self.visible_products(), params)
 
+        # An artisan's own listings, drafts included. Deliberately not part of
+        # filter_products: that shapes the public storefront, while this
+        # depends on who is asking and so must never be served from a shared
+        # cache.
+        if params.get("mine") == "true":
+            user = current_user(self.request)
+            queryset = queryset.filter(artisan__user_id=user.id) if user else queryset.none()
+
         sort = params.get("sort")
         searched = bool(params.get("q", "").strip())
         # Relevance wins when the visitor searched; otherwise honour the sort.

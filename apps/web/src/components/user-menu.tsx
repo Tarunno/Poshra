@@ -1,6 +1,7 @@
 "use client";
 
-import { LogOut, User as UserIcon } from "lucide-react";
+import Link from "next/link";
+import { LayoutDashboard, LogOut, Package } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,8 +41,15 @@ export function UserMenu({ user }: { user: User }) {
           <p className="text-muted-foreground truncate text-xs">{user.email}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled>
-          <UserIcon className="size-4" /> Profile (soon)
+        <DropdownMenuItem asChild>
+          <Link href="/dashboard" className="cursor-pointer">
+            <LayoutDashboard className="size-4" /> Dashboard
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/orders" className="cursor-pointer">
+            <Package className="size-4" /> Your orders
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <form action={logoutAction}>

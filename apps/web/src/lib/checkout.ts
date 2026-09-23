@@ -102,6 +102,16 @@ export async function getOrder(id: string): Promise<Order | null> {
   return (await response.json()) as Order;
 }
 
+/** This buyer's orders, newest first. Empty when there is no session. */
+export async function listOrders(): Promise<Order[]> {
+  const response = await checkoutFetch("/orders");
+  if (response.status === 401) return [];
+  if (!response.ok)
+    throw new Error(`orders request failed: ${response.status}`);
+  const body = (await response.json()) as { results: Order[] | null };
+  return body.results ?? [];
+}
+
 export function cartCount(cart: Cart | null): number {
   return cart?.items.reduce((total, line) => total + line.quantity, 0) ?? 0;
 }
