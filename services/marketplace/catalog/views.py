@@ -47,6 +47,12 @@ def search_products(queryset: QuerySet[Product], query: str) -> QuerySet[Product
 
     Ranking puts title matches above description matches, which is what a
     shopper expects. Trigram and semantic search come later.
+
+    Place names are searchable because the product page prints them: a piece
+    says "Made in Sylhet", and a catalogue that cannot then find "Sylhet" is
+    lying by omission. Note that where a piece is *from* and where its maker
+    *works* are different fields — a mat woven in Sylhet by an artisan based in
+    Khulna is both — so both are indexed.
     """
     if connection.vendor != "postgresql":
         return queryset.filter(
@@ -54,11 +60,21 @@ def search_products(queryset: QuerySet[Product], query: str) -> QuerySet[Product
             | Q(description__icontains=query)
             | Q(materials__icontains=query)
             | Q(craft__name__icontains=query)
+            | Q(origin_district__icontains=query)
+            | Q(artisan__district__icontains=query)
+            | Q(artisan__division__icontains=query)
+            | Q(artisan__display_name__icontains=query)
         )
 
     vector = (
         SearchVector("title", weight="A")
         + SearchVector("craft__name", weight="B")
+        # Where it comes from and who made it are how people actually ask for
+        # handmade work, so they rank above the prose.
+        + SearchVector("origin_district", weight="B")
+        + SearchVector("artisan__display_name", weight="B")
+        + SearchVector("artisan__district", weight="C")
+        + SearchVector("artisan__division", weight="C")
         + SearchVector("materials", weight="C")
         + SearchVector("description", weight="D")
     )

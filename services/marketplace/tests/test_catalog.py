@@ -621,3 +621,35 @@ def test_a_buyer_can_save_a_piece(client, db, artisan, craft, product):
 
     assert client.post(f"{PRODUCTS}/{product.slug}/favourite").status_code == 201
     assert client.get(FAVOURITES).json()["slugs"] == [product.slug]
+
+
+# --- searching by place --------------------------------------------------------
+
+
+def test_a_piece_can_be_found_by_where_it_was_made(client, artisan, craft):
+    # The product page prints "Made in Sylhet"; a catalogue that cannot find
+    # Sylhet is lying by omission. Note the maker's own division is Dhaka —
+    # where a piece is from and where its maker works are different things.
+    Product.objects.create(
+        artisan=artisan,
+        craft=craft,
+        title="Shitalpati mat",
+        origin_district="Sylhet",
+        price_minor=560000,
+        stock=1,
+        status=ProductStatus.PUBLISHED,
+    )
+
+    body = client.get(f"{PRODUCTS}?q=Sylhet").json()
+    assert [row["title"] for row in body["results"]] == ["Shitalpati mat"]
+
+
+def test_a_piece_can_be_found_by_its_maker(client, artisan, craft, product):
+    body = client.get(f"{PRODUCTS}?q=Rina").json()
+    assert product.title in [row["title"] for row in body["results"]]
+
+
+def test_a_piece_can_be_found_by_the_makers_region(client, artisan, craft, product):
+    # Narayanganj is the artisan's district, not the piece's origin.
+    body = client.get(f"{PRODUCTS}?q=Narayanganj").json()
+    assert product.title in [row["title"] for row in body["results"]]
