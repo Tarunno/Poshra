@@ -148,3 +148,13 @@ def test_no_retry_delay_is_not_an_error():
     from app.llm.gemini import _retry_after
 
     assert _retry_after(FakeResponse(503, {"error": {"message": "busy"}})) is None
+
+
+def test_a_long_retry_delay_fails_fast_instead_of_hanging():
+    from app.llm.gemini import MAX_WAIT, _retry_after
+
+    # When Google names a delay this long the quota is spent, not busy.
+    # Waiting it out inside a request turns "try again shortly" into a page
+    # that looks frozen, and the gateway times out first anyway.
+    long_delay = _retry_after(FakeResponse(429, {"error": {"details": [{"retryDelay": "47s"}]}}))
+    assert long_delay is not None and long_delay > MAX_WAIT

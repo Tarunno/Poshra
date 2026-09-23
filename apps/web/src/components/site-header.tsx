@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   LogIn,
   ShoppingBag,
-  Sparkles,
   Store,
   UserPlus,
 } from "lucide-react";
@@ -35,14 +34,6 @@ export function SiteHeader({
               Shop
             </Link>
           </Button>
-          {user && (
-            <Button asChild variant="ghost" size="sm" className="rounded-full">
-              <Link href="/assistant">
-                <Sparkles className="size-4" aria-hidden />
-                <span className="hidden sm:inline">Ask</span>
-              </Link>
-            </Button>
-          )}
           {user ? (
             <>
               <Button

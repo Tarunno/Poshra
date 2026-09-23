@@ -24,6 +24,11 @@ BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 RETRYABLE = {429, 500, 502, 503, 504}
 MAX_ATTEMPTS = 4
 BASE_BACKOFF = 2.0
+# Past this, waiting is worse than answering. A busy moment clears in a second
+# or two; when Google says "come back in 47 seconds" it means the quota is
+# spent, and holding someone's request open for that long only turns a clear
+# "try again shortly" into a page that appears to have frozen.
+MAX_WAIT = 8.0
 
 # Gemini accepts a subset of JSON Schema and rejects the rest outright, so the
 # schemas written for Anthropic are trimmed rather than sent as they are.
@@ -130,6 +135,15 @@ class GeminiConversation:
                 # Google says how long to wait when it knows; otherwise back
                 # off, because hammering a rate limit is how you stay in it.
                 wait = _retry_after(response) or backoff
+                if wait > MAX_WAIT:
+                    log.warning(
+                        "gemini quota exhausted, not waiting",
+                        extra={"status": response.status_code, "asked_to_wait": wait},
+                    )
+                    raise RateLimited(
+                        f"the model asked for {wait:.0f}s, which is longer than a "
+                        f"request should wait"
+                    )
                 log.warning(
                     "gemini busy, waiting",
                     extra={"status": response.status_code, "wait": wait, "attempt": attempt},
