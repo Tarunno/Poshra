@@ -80,6 +80,9 @@ class ProductWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = (
+            # Read-only, but returned: a create should tell the caller what it
+            # made, and the slug is how everything else addresses it.
+            "slug",
             "title",
             "description",
             "materials",
@@ -92,6 +95,7 @@ class ProductWriteSerializer(serializers.ModelSerializer):
             "status",
             "craft",
         )
+        read_only_fields = ("slug",)
 
     def validate_price_minor(self, value: int) -> int:
         if value <= 0:

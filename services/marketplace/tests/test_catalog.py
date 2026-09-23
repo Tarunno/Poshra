@@ -108,6 +108,28 @@ def test_an_artisan_sees_their_own_drafts(client, artisan, craft):
     assert client.get(PRODUCTS).json()["count"] == 1
 
 
+def test_creating_a_listing_returns_its_slug(client, artisan, craft):
+    sign_in(client, artisan.user.email)
+
+    response = client.post(
+        PRODUCTS,
+        {
+            "title": "Brass lamp, hammered",
+            "craft": craft.slug,
+            "price_minor": 890000,
+            "currency": "BDT",
+            "stock": 2,
+            "status": "draft",
+        },
+        content_type="application/json",
+    )
+
+    assert response.status_code == 201
+    # The slug is generated from the title, so the caller has no way to know it
+    # unless the response says.
+    assert response.json()["slug"] == "brass-lamp-hammered"
+
+
 def test_mine_returns_only_the_callers_listings(client, artisan, other_artisan, craft, product):
     Product.objects.create(
         artisan=other_artisan,

@@ -10,6 +10,18 @@ import { cookies } from "next/headers";
 const API_BASE =
   process.env.API_BASE_URL ?? "http://localhost:8080/api/marketplace";
 
+/**
+ * Writes take the public route instead of the internal one.
+ *
+ * The internal route is unlimited on purpose: one page render makes several
+ * reads and every pod shares a source address, so a per-client limit would
+ * throttle the storefront itself. Writes have no such problem — one user
+ * action is one write — and a Server Action is a public POST endpoint, so
+ * sending writes down the unlimited path would hand an attacker an
+ * unthrottled way in. The public route is rate limited per user.
+ */
+const WRITE_BASE = process.env.API_WRITE_BASE_URL ?? API_BASE;
+
 export type User = {
   id: string;
   email: string;
@@ -30,6 +42,22 @@ export async function apiFetch(
       ...(cookieHeader ? { cookie: cookieHeader } : {}),
     },
     // Session-dependent data must never be served from a cache.
+    cache: "no-store",
+  });
+}
+
+/** Like apiFetch, but through the rate-limited route. See WRITE_BASE. */
+export async function apiWriteFetch(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const cookieHeader = (await cookies()).toString();
+  return fetch(`${WRITE_BASE}${path}`, {
+    ...init,
+    headers: {
+      ...(init.headers ?? {}),
+      ...(cookieHeader ? { cookie: cookieHeader } : {}),
+    },
     cache: "no-store",
   });
 }

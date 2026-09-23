@@ -49,6 +49,11 @@ spec:
             # the session cookie and injects the identity header.
             - name: CHECKOUT_BASE_URL
               value: http://kong-proxy/api/checkout
+            # Writes take the public, rate-limited route. The internal one is
+            # unlimited so a page render is not throttled, which is the wrong
+            # property for an endpoint anyone can post to.
+            - name: API_WRITE_BASE_URL
+              value: http://kong-proxy/api/marketplace
           ports:
             - name: http
               containerPort: 3000

@@ -134,8 +134,27 @@ export default async function DashboardPage() {
         </span>
       </section>
 
+      {artisan && listings.length === 0 && (
+        <Panel
+          title="Your workshop"
+          tint="bg-tint-mint"
+          href="/dashboard/listings/new"
+          cta="List a piece"
+        >
+          <p className="mt-4 text-sm opacity-70">
+            Nothing listed yet. Describe a piece you have made and it appears in
+            the shop.
+          </p>
+        </Panel>
+      )}
+
       {artisan && listings.length > 0 && (
-        <Panel title="Pieces you make" tint="bg-tint-mint">
+        <Panel
+          title="Pieces you make"
+          tint="bg-tint-mint"
+          href="/dashboard/listings"
+          cta="Manage"
+        >
           <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             {listings.slice(0, 5).map((piece) => (
               <WorkshopPiece key={piece.id} product={piece} />
