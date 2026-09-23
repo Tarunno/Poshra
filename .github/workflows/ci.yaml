@@ -93,6 +93,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Refuse a config with duplicate top-level keys
+        run: python3 gateway/kong/tests/no_duplicate_keys.py gateway/kong/kong.yaml
+
       # The GCRA unit tests run in the Kong image, which ships the resty CLI.
       - run: |
           docker run --rm -v "${{ github.workspace }}/gateway/kong:/kong:ro" \

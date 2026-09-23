@@ -30,6 +30,7 @@ migrate: ## Apply Django migrations for marketplace (one-off container)
 	$(COMPOSE) run --rm marketplace python manage.py migrate
 
 kong-validate: ## Validate gateway/kong/kong.yaml
+	@python3 gateway/kong/tests/no_duplicate_keys.py gateway/kong/kong.yaml
 	$(COMPOSE) run --rm --no-deps kong kong config parse /kong/kong.yaml
 
 kong-test: ## Run Kong plugin unit tests
