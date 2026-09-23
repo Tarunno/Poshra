@@ -74,6 +74,12 @@ function Identity:access(conf)
     kong.service.request.clear_header(header)
   end
 
+  if conf.strip_only then
+    -- Credential routes: nothing to verify yet, but forged headers must still
+    -- not reach the service.
+    return
+  end
+
   local token = token_from_request(conf)
   if not token then
     if conf.require_authentication then

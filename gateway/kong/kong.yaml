@@ -87,6 +87,11 @@ services:
         strip_path: true
         protocols: [http, https]
         plugins:
+          # Cannot verify a token here, but still refuses to pass a
+          # client-supplied identity header through to the service.
+          - name: poshra-identity
+            config:
+              strip_only: true
           - name: poshra-leaky-bucket
             config:
               rate: 1

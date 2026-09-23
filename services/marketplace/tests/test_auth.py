@@ -251,19 +251,19 @@ def test_service_layer_login_returns_usable_pair(user):
 
 def test_me_returns_the_logged_in_user(client, user):
     login(client)
-    body = client.get("/auth/me").json()
+    body = client.get("/users/me").json()
     assert body["email"] == user.email
     assert body["role"] == Role.ARTISAN
 
 
 def test_me_without_a_session_is_401(client):
-    assert client.get("/auth/me").status_code == 401
+    assert client.get("/users/me").status_code == 401
 
 
 def test_me_prefers_the_gateway_identity_header(client, user):
     other = User.objects.create_user(email="buyer@poshra.test", password=PASSWORD)
     login(client)  # cookie belongs to `user`
-    body = client.get("/auth/me", HTTP_X_USER_ID=str(other.id)).json()
+    body = client.get("/users/me", HTTP_X_USER_ID=str(other.id)).json()
     assert body["email"] == other.email
 
 
@@ -294,7 +294,7 @@ def test_auth_endpoints_are_throttled(client, settings, user):
 
 def test_service_trusts_the_gateway_identity_header(client, user, settings):
     settings.AUTH_COOKIE_FALLBACK = False
-    body = client.get("/auth/me", HTTP_X_USER_ID=str(user.id)).json()
+    body = client.get("/users/me", HTTP_X_USER_ID=str(user.id)).json()
     assert body["email"] == user.email
 
 
@@ -304,18 +304,18 @@ def test_without_the_header_the_request_is_anonymous_in_the_cluster(client, user
     # reached the service without a header never passed it.
     settings.AUTH_COOKIE_FALLBACK = False
     login(client)
-    assert client.get("/auth/me").status_code == 401
+    assert client.get("/users/me").status_code == 401
 
 
 def test_cookie_fallback_works_when_running_without_a_gateway(client, user, settings):
     settings.AUTH_COOKIE_FALLBACK = True
     login(client)
-    assert client.get("/auth/me").status_code == 200
+    assert client.get("/users/me").status_code == 200
 
 
 def test_an_unknown_user_id_in_the_header_is_not_authenticated(client, settings):
     settings.AUTH_COOKIE_FALLBACK = False
-    response = client.get("/auth/me", HTTP_X_USER_ID="11111111-1111-1111-1111-111111111111")
+    response = client.get("/users/me", HTTP_X_USER_ID="11111111-1111-1111-1111-111111111111")
     assert response.status_code == 401
 
 
@@ -323,4 +323,4 @@ def test_a_disabled_account_is_rejected_even_with_a_valid_header(client, user, s
     settings.AUTH_COOKIE_FALLBACK = False
     user.is_active = False
     user.save(update_fields=["is_active"])
-    assert client.get("/auth/me", HTTP_X_USER_ID=str(user.id)).status_code == 401
+    assert client.get("/users/me", HTTP_X_USER_ID=str(user.id)).status_code == 401

@@ -36,7 +36,7 @@ export async function apiFetch(
 /** The current user, or null when signed out. Never throws. */
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    const response = await apiFetch("/auth/me");
+    const response = await apiFetch("/users/me");
     if (!response.ok) return null;
     return (await response.json()) as User;
   } catch {
