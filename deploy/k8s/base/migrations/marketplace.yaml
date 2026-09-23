@@ -1,16 +1,20 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  # generateName: a Job's pod template is immutable, so every run creates a new
-  # Job. Applied with `kubectl create`, never `kubectl apply`.
-  generateName: marketplace-migrate-
-  namespace: poshra
+  name: marketplace-migrate
+  annotations:
+    # PreSync: Argo CD runs this and waits for success before applying the rest
+    # of the sync. A failed migration stops the deploy instead of shipping code
+    # that its database cannot serve.
+    argocd.argoproj.io/hook: PreSync
+    # A Job's pod template is immutable, so each run needs a fresh Job. Argo
+    # deletes the previous one just before creating this one, which also leaves
+    # the last run visible for inspection until the next deploy.
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
   labels:
-    app.kubernetes.io/part-of: poshra
     app.kubernetes.io/name: marketplace-migrate
 spec:
   backoffLimit: 3
-  ttlSecondsAfterFinished: 600
   template:
     metadata:
       labels:
@@ -24,8 +28,8 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: migrate
-          # Replaced with the exact image being deployed (see `make k8s-migrate`).
-          image: IMAGE_PLACEHOLDER
+          # No tag: kustomize sets the one being deployed in this sync.
+          image: ghcr.io/tarunno/poshra/marketplace
           command: ["python", "manage.py", "migrate", "--noinput"]
           envFrom:
             - configMapRef: { name: marketplace-config }

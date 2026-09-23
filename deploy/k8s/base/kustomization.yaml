@@ -19,13 +19,17 @@ resources:
   - web.yaml
   - network-policies.yaml
   - kong.yaml
+  # Argo CD PreSync hooks; see migrations/README.md.
+  - migrations/marketplace.yaml
+  - migrations/inventory.yaml
+  - migrations/checkout.yaml
 
 configMapGenerator:
   - name: postgres-init
     files:
       - 01-databases.sh=files/postgres-init.sh
   - name: marketplace-config
-    # No name hash: the migration Job (deploy/k8s/jobs/migrate.yaml) references
+    # No name hash: the migration hook (migrations/marketplace.yaml) references
     # this ConfigMap by a fixed name.
     options:
       disableNameSuffixHash: true

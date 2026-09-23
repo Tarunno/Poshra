@@ -95,18 +95,68 @@ func (s *Store) Migrate(ctx context.Context) error {
 	for _, entry := range entries {
 		names = append(names, entry.Name())
 	}
-	sort.Strings(names)
+	sort.Strings(names) // applied in filename order
+
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	if _, err := conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			name       TEXT PRIMARY KEY,
+			applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+		)`); err != nil {
+		return fmt.Errorf("create migration ledger: %w", err)
+	}
 
 	for _, name := range names {
 		body, err := migrations.ReadFile("migrations/" + name)
 		if err != nil {
 			return err
 		}
-		if _, err := s.pool.Exec(ctx, string(body)); err != nil {
-			return fmt.Errorf("apply %s: %w", name, err)
+		if err := applyOnce(ctx, conn.Conn(), name, string(body)); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// migrationLock serialises migration runs for this service. Any constant will
+// do, as long as every replica of this service uses the same one and no other
+// service sharing the database uses it too.
+const migrationLock int64 = 7326104001
+
+// applyOnce runs one migration if the ledger has not recorded it already.
+//
+// The whole thing is one transaction: Postgres applies DDL transactionally, so
+// a migration that fails halfway leaves nothing behind, and the ledger row
+// exists only if the schema change does. The advisory lock is what makes this
+// safe to run from two places at once — a rolling deploy, or two syncs racing
+// — because the second run waits, then finds the file already applied.
+func applyOnce(ctx context.Context, conn *pgx.Conn, name, body string) error {
+	return pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, migrationLock); err != nil {
+			return err
+		}
+
+		var applied bool
+		if err := tx.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE name = $1)`,
+			name).Scan(&applied); err != nil {
+			return err
+		}
+		if applied {
+			return nil
+		}
+
+		if _, err := tx.Exec(ctx, body); err != nil {
+			return fmt.Errorf("apply %s: %w", name, err)
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO schema_migrations (name) VALUES ($1)`, name)
+		return err
+	})
 }
 
 // --- cart -------------------------------------------------------------------

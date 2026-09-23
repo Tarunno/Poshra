@@ -189,3 +189,23 @@ func TestConcurrentRelaysDoNotSendTheSameEvent(t *testing.T) {
 		}
 	}
 }
+
+// Migrating twice must be a no-op. The Jobs run on every deploy, so a migrator
+// that re-applies its files would break on the first statement that is not
+// guarded with IF NOT EXISTS.
+func TestMigrateIsSafeToRunAgain(t *testing.T) {
+	ctx := context.Background()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatalf("second migrate: %v", err)
+	}
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatalf("third migrate: %v", err)
+	}
+
+	// And the data still works afterwards, so nothing was dropped or reset.
+	writeOrder(t)
+	count, err := db.PublishBatch(ctx, 10, func([]store.PendingEvent) error { return nil })
+	if err != nil || count == 0 {
+		t.Fatalf("published %d (err %v) after re-migrating, want at least 1", count, err)
+	}
+}

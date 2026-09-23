@@ -79,35 +79,8 @@ k8s-deploy: ## Apply manifests to the cluster (TAG=<image tag>, default dev)
 	kubectl -n poshra rollout status deploy/marketplace --timeout=180s
 	kubectl -n poshra rollout status deploy/kong --timeout=120s
 
-k8s-migrate-inventory: ## Run inventory migrations in the cluster as a one-off Job
-	@IMAGE=$$(kubectl -n poshra get deploy inventory -o jsonpath='{.spec.template.spec.containers[0].image}'); \
-	sed "s|IMAGE_PLACEHOLDER|$$IMAGE|" deploy/k8s/jobs/inventory-migrate.yaml | kubectl create -f - -o name | \
-	xargs -I{} kubectl -n poshra wait --for=condition=complete --timeout=180s {}
-
-k8s-migrate-checkout: ## Run checkout migrations in the cluster as a one-off Job
-	@IMAGE=$$(kubectl -n poshra get deploy checkout -o jsonpath='{.spec.template.spec.containers[0].image}'); \
-	sed "s|IMAGE_PLACEHOLDER|$$IMAGE|" deploy/k8s/jobs/checkout-migrate.yaml | kubectl create -f - -o name | \
-	xargs -I{} kubectl -n poshra wait --for=condition=complete --timeout=180s {}
-
-k8s-migrate: ## Run Django migrations in the cluster as a one-off Job
-	@IMAGE=$$(kubectl -n poshra get deploy marketplace -o jsonpath='{.spec.template.spec.containers[0].image}'); \
-	sed "s|IMAGE_PLACEHOLDER|$$IMAGE|" deploy/k8s/jobs/migrate.yaml | kubectl create -f - -o name | \
-	xargs -I{} kubectl -n poshra wait --for=condition=complete --timeout=180s {}
-
-kafka-operator: ## Install the Strimzi operator into the poshra namespace
-	helm repo add strimzi https://strimzi.io/charts/ 2>/dev/null || true
-	helm upgrade --install strimzi strimzi/strimzi-kafka-operator \
-		--namespace poshra --values deploy/kafka/values.yaml --wait
-
-kafka: ## Create the Kafka cluster and its topics
-	kubectl apply --server-side -f deploy/kafka/kafka.yaml
-	kubectl -n poshra wait kafka/poshra --for=condition=Ready --timeout=300s
-	kubectl -n poshra get kafkatopic
-
-kafka-tail: ## Read the order events as they are published (Ctrl-C to stop)
-	kubectl -n poshra exec -it poshra-combined-0 -- bin/kafka-console-consumer.sh \
-		--bootstrap-server localhost:9092 \
-		--topic poshra.orders.created.v1 --from-beginning --property print.key=true
+k8s-migrations: ## Show the result of the last migration run
+	kubectl -n poshra get jobs -l 'app.kubernetes.io/name in (marketplace-migrate,inventory-migrate,checkout-migrate)'
 
 k8s-status: ## Show what is running in the poshra namespace
 	kubectl -n poshra get pods,svc,pvc -o wide
