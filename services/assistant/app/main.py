@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from app.assistant import Assistant
 from app.catalog import CatalogClient
 from app.config import Config, ConfigError
+from app.llm.gemini import RateLimited
 from app.logging import configure_logging
 
 log = logging.getLogger(__name__)
@@ -92,6 +93,14 @@ async def chat(
 
     try:
         answer = await assistant.reply(conversation)
+    except RateLimited as error:
+        # Being out of quota is not a broken service, and telling someone to
+        # wait is a different instruction from telling them it is down.
+        log.warning("model rate limited", extra={"error": str(error), "user_id": x_user_id})
+        raise HTTPException(
+            status_code=429,
+            detail="The assistant is busy right now. Try again in a minute.",
+        ) from error
     except Exception as error:  # noqa: BLE001
         # The detail goes to the log; the shopper gets nothing about internals.
         log.error("assistant failed", extra={"error": str(error), "user_id": x_user_id})

@@ -63,10 +63,15 @@ export async function askAssistant(history: ChatTurn[]): Promise<ChatAnswer> {
       };
     }
     if (response.status === 429) {
+      // Either the gateway's own limit or the model being out of quota; both
+      // mean wait, and neither means the assistant is broken.
+      const body = (await response.json().catch(() => ({}))) as {
+        detail?: string;
+      };
       return {
         reply: "",
         products: [],
-        error: "One question at a time — try again in a moment.",
+        error: body.detail ?? "One question at a time — try again in a moment.",
       };
     }
     if (!response.ok) {

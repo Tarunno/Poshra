@@ -94,3 +94,24 @@ def test_an_empty_conversation_is_rejected(client):
     test_client, _ = client
     response = test_client.post("/chat", json={"messages": []}, headers={"X-User-Id": "user-1"})
     assert response.status_code == 422
+
+
+def test_being_out_of_quota_says_wait_rather_than_broken(client, monkeypatch):
+    from app.llm.gemini import RateLimited
+
+    test_client, stub = client
+
+    async def rate_limited(messages):
+        raise RateLimited("the model answered 429 4 times")
+
+    monkeypatch.setattr(stub, "reply", rate_limited)
+    response = test_client.post(
+        "/chat",
+        json={"messages": [{"role": "user", "content": "hi"}]},
+        headers={"X-User-Id": "user-1"},
+    )
+
+    # 429, not 503: the service is fine, the quota is not, and "try again in a
+    # minute" is a different instruction from "it is down".
+    assert response.status_code == 429
+    assert "busy" in response.json()["detail"]
