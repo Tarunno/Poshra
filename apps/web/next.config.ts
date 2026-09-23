@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Every replica shares one cache, so revalidating a tag is observed by all
+  // of them rather than only by the pod that handled the request. See
+  // cache-handler.js for why that matters here.
+  cacheHandler: require.resolve("./cache-handler.js"),
+  // Without this the in-process LRU sits in front of Redis and keeps handing
+  // back the entry another replica just invalidated — the exact bug this is
+  // meant to fix.
+  cacheMaxMemorySize: 0,
   // Standalone output bundles only the files the server needs, so the runtime
   // image does not carry the whole node_modules tree.
   output: "standalone",

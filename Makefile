@@ -66,6 +66,11 @@ k8s-secrets: ## Create namespace + generated secrets (passwords and keys, made o
 		rm -rf $$tmp )
 	@kubectl -n poshra get secret
 
+	@kubectl -n poshra get secret poshra-redis >/dev/null 2>&1 || ( \
+		pass=$$(openssl rand -hex 24); \
+		kubectl -n poshra create secret generic poshra-redis \
+			--from-literal=REDIS_PASSWORD="$$pass" \
+			--from-literal=REDIS_URL="redis://:$$pass@redis:6379" )
 	@kubectl -n poshra get secret poshra-media >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-media \
 		--from-literal=MEDIA_ACCESS_KEY=poshra \
 		--from-literal=MEDIA_SECRET_KEY=$$(openssl rand -hex 24)

@@ -58,6 +58,10 @@ spec:
             # goes through the public one with its rate limiter.
             - name: ASSISTANT_BASE_URL
               value: http://kong-proxy/api/assistant
+            # The shared render cache. Without it each replica caches alone and
+            # an invalidation is only seen by the pod that performed it.
+            - name: REDIS_URL
+              valueFrom: { secretKeyRef: { name: poshra-redis, key: REDIS_URL } }
           ports:
             - name: http
               containerPort: 3000

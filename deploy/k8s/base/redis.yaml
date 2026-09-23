@@ -1,0 +1,80 @@
+# The cache every web replica shares.
+#
+# Next's own cache lives inside one process, so revalidating a tag clears it on
+# the pod that handled the request and leaves the others serving what they had.
+# This is the shared store behind apps/web/cache-handler.js.
+#
+# It holds nothing that cannot be rebuilt by rendering again, so there is no
+# persistence and no replication: losing it costs a slower page, not data.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  selector:
+    app.kubernetes.io/name: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  # Two of these would each hold half the answers and disagree about the rest.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: redis
+          image: redis:8-alpine
+          # A cache with no ceiling is a node outage waiting to happen, so it
+          # is capped and evicts what was used least. `--save ""` turns off
+          # snapshots: there is nothing here worth writing to disk.
+          command:
+            - sh
+            - -c
+            - |
+              exec redis-server \
+                --requirepass "$REDIS_PASSWORD" \
+                --maxmemory 192mb \
+                --maxmemory-policy allkeys-lru \
+                --save "" \
+                --appendonly no
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: poshra-redis, key: REDIS_PASSWORD } }
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", 'redis-cli -a "$REDIS_PASSWORD" ping | grep -q PONG']
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket: { port: redis }
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
