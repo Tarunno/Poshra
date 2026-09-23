@@ -10,14 +10,14 @@ resources:
 # needs a line here, or the base's floating "dev" tag is what gets deployed.
 images:
   - name: ghcr.io/tarunno/poshra/marketplace
-    newTag: d33365777c5f0149aa317c1f4b97c7056ed2ce72
+    newTag: d47cc456684b28c5b5d231b43398961f8edacab6
   - name: ghcr.io/tarunno/poshra/web
-    newTag: d33365777c5f0149aa317c1f4b97c7056ed2ce72
+    newTag: d47cc456684b28c5b5d231b43398961f8edacab6
   - name: ghcr.io/tarunno/poshra/inventory
-    newTag: d33365777c5f0149aa317c1f4b97c7056ed2ce72
+    newTag: d47cc456684b28c5b5d231b43398961f8edacab6
   - name: ghcr.io/tarunno/poshra/kong
-    newTag: d33365777c5f0149aa317c1f4b97c7056ed2ce72
+    newTag: d47cc456684b28c5b5d231b43398961f8edacab6
   - name: ghcr.io/tarunno/poshra/assistant
-    newTag: d33365777c5f0149aa317c1f4b97c7056ed2ce72
+    newTag: d47cc456684b28c5b5d231b43398961f8edacab6
   - name: ghcr.io/tarunno/poshra/checkout
-    newTag: d33365777c5f0149aa317c1f4b97c7056ed2ce72
+    newTag: d47cc456684b28c5b5d231b43398961f8edacab6
