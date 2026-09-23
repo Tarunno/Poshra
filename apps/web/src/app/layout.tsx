@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { Hind_Siliguri } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { AssistantWidget } from "@/components/assistant-widget";
 import { SessionKeeper } from "@/components/session-keeper";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -44,6 +45,9 @@ export default async function RootLayout({
         <SiteHeader user={user} cartCount={items} />
         <main className="mx-auto w-full max-w-6xl px-4 py-10">{children}</main>
         <SiteFooter />
+        {/* Signed in only: every answer is a paid model call, and the route
+            behind it requires a session anyway. */}
+        {user && <AssistantWidget />}
         <Toaster />
       </body>
     </html>

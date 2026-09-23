@@ -25,7 +25,7 @@ const OPENERS = [
  * the whole history is sent with each question and nothing about what someone
  * asked is kept once they close the tab.
  */
-export function ShoppingChat() {
+export function ShoppingChat({ compact = false }: { compact?: boolean }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
@@ -71,12 +71,22 @@ export function ShoppingChat() {
   return (
     <div className="space-y-5">
       {entries.length === 0 && (
-        <div className="bg-tint-sky rounded-panel stitched p-7 sm:p-9">
+        <div
+          className={
+            compact
+              ? "bg-tint-sky rounded-2xl p-5"
+              : "bg-tint-sky rounded-panel stitched p-7 sm:p-9"
+          }
+        >
           <p className="bg-background/70 text-ink-sky inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase">
             <Sparkles className="size-3.5" aria-hidden />
             Ask for what you want
           </p>
-          <h2 className="mt-4 max-w-lg text-2xl leading-snug font-bold tracking-tight text-balance">
+          <h2
+            className={`mt-4 max-w-lg leading-snug font-bold tracking-tight text-balance ${
+              compact ? "text-base" : "text-2xl"
+            }`}
+          >
             Describe the piece you are looking for, the way you would to a
             shopkeeper.
           </h2>
@@ -117,7 +127,13 @@ export function ShoppingChat() {
                 </Button>
               )}
               {entry.products && entry.products.length > 0 && (
-                <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
+                <div
+                  className={
+                    compact
+                      ? "grid grid-cols-1 gap-4"
+                      : "grid grid-cols-2 gap-5 lg:grid-cols-3"
+                  }
+                >
                   {entry.products.map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}
@@ -151,7 +167,9 @@ export function ShoppingChat() {
           event.preventDefault();
           send(draft);
         }}
-        className="bg-background sticky bottom-4 flex items-center gap-2 rounded-full p-2 shadow-sm"
+        className={`bg-background flex items-center gap-2 rounded-full p-2 shadow-sm ${
+          compact ? "" : "sticky bottom-4"
+        }`}
       >
         <label htmlFor="question" className="sr-only">
           What are you looking for?
