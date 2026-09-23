@@ -1,19 +1,18 @@
 "use client";
 
-import { useRef, useState } from "react";
+import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Upload } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
 
 const ACCEPT = "image/jpeg,image/png,image/webp";
 
 /**
- * A drop target that is really a file input.
+ * A drop target shaped like the photographs beside it, so adding one reads as
+ * filling the next tile rather than using a separate machine.
  *
- * The input stays the control: it keeps the keyboard and the screen-reader
- * behaviour, and the form still submits if the drop handlers never run. The
- * dragging only writes into that input, so nothing here is the only way to
- * add a photograph.
+ * The file input is still the control: dragging only writes into it, so the
+ * keyboard, the screen reader and the browser's own "choose a file" validation
+ * keep working whether or not anything is ever dropped.
  */
 export function PhotoDropzone({
   name,
@@ -24,7 +23,14 @@ export function PhotoDropzone({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
-  const [chosen, setChosen] = useState<string>();
+  const [preview, setPreview] = useState<{ url: string; name: string }>();
+
+  // An object URL holds the file in memory until it is released.
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview.url);
+    };
+  }, [preview]);
 
   function accept(files: FileList | null) {
     const file = files?.[0];
@@ -34,7 +40,10 @@ export function PhotoDropzone({
     const transfer = new DataTransfer();
     transfer.items.add(file);
     inputRef.current.files = transfer.files;
-    setChosen(file.name);
+    setPreview((old) => {
+      if (old) URL.revokeObjectURL(old.url);
+      return { url: URL.createObjectURL(file), name: file.name };
+    });
   }
 
   return (
@@ -49,10 +58,10 @@ export function PhotoDropzone({
         setOver(false);
         if (!disabled) accept(event.dataTransfer.files);
       }}
-      className={`rounded-2xl border-2 border-dashed p-6 text-center transition ${
+      className={`relative aspect-square overflow-hidden rounded-2xl border-2 border-dashed transition ${
         over
-          ? "border-foreground/40 bg-background"
-          : "border-foreground/15 bg-background/50"
+          ? "border-foreground/50 bg-background"
+          : "border-foreground/20 bg-background/40"
       } ${disabled ? "opacity-50" : ""}`}
     >
       <input
@@ -63,34 +72,43 @@ export function PhotoDropzone({
         accept={ACCEPT}
         required
         disabled={disabled}
-        onChange={(event) => setChosen(event.target.files?.[0]?.name)}
-        // Visually hidden rather than display:none, so it stays focusable and
-        // the browser still reports a missing file on submit.
+        onChange={(event) => accept(event.target.files)}
+        // Visually hidden rather than removed, so it stays focusable and the
+        // browser still reports a missing file on submit.
         className="sr-only"
       />
 
-      {chosen ? (
-        <p className="flex items-center justify-center gap-2 text-sm font-semibold">
-          <ImagePlus className="size-4" aria-hidden />
-          {chosen}
-        </p>
-      ) : (
-        <p className="flex items-center justify-center gap-2 text-sm opacity-70">
-          <Upload className="size-4" aria-hidden />
-          Drop a photograph here
-        </p>
+      {preview && (
+        <Image
+          src={preview.url}
+          alt=""
+          fill
+          // A local object URL is not something the optimiser can fetch.
+          unoptimized
+          className="object-cover opacity-40"
+        />
       )}
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="mt-3 rounded-full"
-        disabled={disabled}
-        onClick={() => inputRef.current?.click()}
+      <label
+        htmlFor={name}
+        className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-1.5 p-3 text-center"
       >
-        {chosen ? "Choose a different one" : "Or choose a file"}
-      </Button>
+        {preview ? (
+          <>
+            <ImagePlus className="size-5" aria-hidden />
+            <span className="line-clamp-2 text-xs font-semibold break-all">
+              {preview.name}
+            </span>
+            <span className="text-[0.7rem] opacity-70">Choose another</span>
+          </>
+        ) : (
+          <>
+            <Upload className="size-5 opacity-60" aria-hidden />
+            <span className="text-xs font-semibold">Drop a photograph</span>
+            <span className="text-[0.7rem] opacity-70">or click to choose</span>
+          </>
+        )}
+      </label>
     </div>
   );
 }

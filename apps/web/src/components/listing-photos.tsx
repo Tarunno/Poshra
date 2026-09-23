@@ -34,9 +34,14 @@ function UploadButton() {
 /**
  * The photographs on a listing.
  *
- * Upload is its own form rather than part of the listing form: a photograph is
- * saved the moment it is chosen, so nobody loses one by leaving the page
- * without pressing save.
+ * One form, not several. The drop target sits in the same grid as the
+ * photographs so adding one reads as filling the next tile, and HTML forbids
+ * nesting a form inside a form — so removing a photograph is a submit button
+ * with its own formAction rather than a form of its own. It skips validation,
+ * because the file input is required for adding and irrelevant to removing.
+ *
+ * Upload is separate from the listing form on purpose: a photograph is saved
+ * the moment it is chosen, so nobody loses one by leaving without saving.
  */
 export function ListingPhotos({
   slug,
@@ -54,7 +59,9 @@ export function ListingPhotos({
   const full = images.length >= max;
 
   return (
-    <div className="space-y-5">
+    <form action={formAction} className="space-y-5">
+      <input type="hidden" name="slug" value={slug} />
+
       <div className="flex items-baseline justify-between gap-4">
         <h2 className="text-sm font-semibold tracking-wide uppercase opacity-70">
           Photographs
@@ -64,58 +71,53 @@ export function ListingPhotos({
         </p>
       </div>
 
-      {images.length > 0 && (
-        <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-          {images.map((image, index) => (
-            <li key={image.id} className="group relative">
-              <div className="relative aspect-square overflow-hidden rounded-2xl">
-                <Image
-                  src={image.url}
-                  alt={image.alt_text || `Photograph ${index + 1}`}
-                  fill
-                  sizes="(min-width: 640px) 20vw, 30vw"
-                  className="object-cover"
-                />
-              </div>
-              {index === 0 && (
-                <span className="bg-background/85 absolute top-2 left-2 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold backdrop-blur">
-                  Cover
-                </span>
-              )}
-              <form action={deleteImageAction}>
-                <input type="hidden" name="slug" value={slug} />
-                <input type="hidden" name="image_id" value={String(image.id)} />
-                <Button
-                  type="submit"
-                  variant="ghost"
-                  size="icon"
-                  className="bg-background/85 text-ink-rose absolute top-2 right-2 size-7 rounded-full backdrop-blur"
-                  aria-label={`Remove photograph ${index + 1}`}
-                >
-                  <Trash2 className="size-3.5" aria-hidden />
-                </Button>
-              </form>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+        {images.map((image, index) => (
+          <div key={image.id} className="relative">
+            <div className="relative aspect-square overflow-hidden rounded-2xl">
+              <Image
+                src={image.url}
+                alt={image.alt_text || `Photograph ${index + 1}`}
+                fill
+                sizes="(min-width: 640px) 20vw, 30vw"
+                className="object-cover"
+              />
+            </div>
+            {index === 0 && (
+              <span className="bg-background/85 absolute top-2 left-2 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold backdrop-blur">
+                Cover
+              </span>
+            )}
+            <Button
+              type="submit"
+              formAction={deleteImageAction}
+              // The file input is required for adding and meaningless here.
+              formNoValidate
+              name="image_id"
+              value={String(image.id)}
+              variant="ghost"
+              size="icon"
+              className="bg-background/85 text-ink-rose absolute top-2 right-2 size-7 rounded-full backdrop-blur"
+              aria-label={`Remove photograph ${index + 1}`}
+            >
+              <Trash2 className="size-3.5" aria-hidden />
+            </Button>
+          </div>
+        ))}
+
+        {!full && <PhotoDropzone name="file" />}
+      </div>
 
       {full ? (
         <p className="text-sm opacity-70">
           That is the most a listing can hold. Remove one to add another.
         </p>
       ) : (
-        <form action={formAction} className="space-y-4">
-          <input type="hidden" name="slug" value={slug} />
-
-          <div className="space-y-2">
-            <Label htmlFor="file">Add a photograph</Label>
-            <PhotoDropzone name="file" />
-            <p className="text-xs opacity-60">
-              JPEG, PNG or WebP, up to 6 MB. Location data is removed when it is
-              stored.
-            </p>
-          </div>
+        <>
+          <p className="text-xs opacity-60">
+            JPEG, PNG or WebP, up to 6 MB. Location data is removed when it is
+            stored.
+          </p>
 
           <div className="space-y-2">
             <Label htmlFor="alt_text">Describe it (for screen readers)</Label>
@@ -139,8 +141,8 @@ export function ListingPhotos({
           )}
 
           <UploadButton />
-        </form>
+        </>
       )}
-    </div>
+    </form>
   );
 }
