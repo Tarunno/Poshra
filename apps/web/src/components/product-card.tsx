@@ -1,15 +1,25 @@
 import Image from "next/image";
 import Link from "next/link";
+import { CardActions } from "@/components/card-actions";
 import { CraftTile } from "@/components/craft-tile";
 import { Badge } from "@/components/ui/badge";
 import type { Product } from "@/lib/catalog";
 import { formatMoney } from "@/lib/format";
 
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({
+  product,
+  saved = false,
+  actions = false,
+}: {
+  product: Product;
+  saved?: boolean;
+  /** Off by default: a card inside a chat answer is for reading, not acting. */
+  actions?: boolean;
+}) {
   const image = product.images[0];
 
   return (
-    <article className="group">
+    <article className="group relative">
       <Link
         href={`/products/${product.slug}`}
         className="focus-visible:ring-foreground/50 block rounded-3xl focus-visible:ring-2 focus-visible:ring-offset-4 focus-visible:outline-none"
@@ -59,6 +69,15 @@ export function ProductCard({ product }: { product: Product }) {
           </p>
         </div>
       </Link>
+
+      {actions && (
+        <CardActions
+          skuId={product.id}
+          slug={product.slug}
+          saved={saved}
+          inStock={product.in_stock}
+        />
+      )}
     </article>
   );
 }

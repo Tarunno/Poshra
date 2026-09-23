@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutDashboard, LogOut, Package } from "lucide-react";
+import { Heart, LayoutDashboard, LogOut, Package } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,6 +49,11 @@ export function UserMenu({ user }: { user: User }) {
         <DropdownMenuItem asChild>
           <Link href="/orders" className="cursor-pointer">
             <Package className="size-4" /> Your orders
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/saved" className="cursor-pointer">
+            <Heart className="size-4" /> Saved pieces
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

@@ -187,3 +187,29 @@ class ProductImage(TimestampedModel):
 
     def __str__(self) -> str:
         return f"image of {self.product_id}"
+
+
+class Favourite(TimestampedModel):
+    """A piece someone wants to come back to.
+
+    The buyer is kept as a plain id rather than a foreign key to the user
+    table: identity arrives from the gateway as a verified id, and a join is
+    never needed to answer either question this supports — what have I saved,
+    and have I saved this.
+    """
+
+    user_id = models.UUIDField()
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="favourites")
+
+    class Meta:
+        db_table = "catalog_favourite"
+        constraints = [
+            # Saving twice is the same as saving once, so the database says so
+            # and the endpoint can be written as "make it true".
+            models.UniqueConstraint(fields=["user_id", "product"], name="one_favourite_per_piece")
+        ]
+        indexes = [models.Index(fields=["user_id", "-created_at"], name="favourite_recent_idx")]
+        ordering = ("-created_at",)
+
+    def __str__(self) -> str:
+        return f"{self.user_id} saved {self.product_id}"

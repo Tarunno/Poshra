@@ -8,14 +8,22 @@ from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
 from django.core.exceptions import ValidationError
 from django.db import connection
 from django.db.models import Count, Max, Min, Q, QuerySet
-from rest_framework import mixins, status, viewsets
+from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from catalog.media import UploadRejected, delete_image, store_image
-from catalog.models import ArtisanProfile, Craft, Product, ProductImage, ProductStatus
+from catalog.models import (
+    ArtisanProfile,
+    Craft,
+    Favourite,
+    Product,
+    ProductImage,
+    ProductStatus,
+)
 from catalog.permissions import ReadOnlyOrArtisanOwner, current_user
 from catalog.serializers import (
     ArtisanSerializer,
@@ -291,6 +299,39 @@ class ProductViewSet(viewsets.ModelViewSet):
         delete_image(url)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(
+        detail=True,
+        methods=["post", "delete"],
+        url_path="favourite",
+        # The viewset's own rule is "only artisans may write", which is about
+        # editing listings. Saving a piece is something a buyer does, so this
+        # action carries its own rule and checks identity itself.
+        permission_classes=[permissions.AllowAny],
+    )
+    def favourite(self, request: Request, slug: str | None = None) -> Response:
+        """Save a piece, or stop saving it.
+
+        Deliberately not on the product serializer: whether *you* saved
+        something is per-person, and the product list is cached and shared.
+        Mixing the two would hand one shopper's saved pieces to the next.
+        """
+        user = current_user(request)
+        if user is None:
+            return Response(
+                {"detail": "Sign in to save a piece."}, status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        product = self.get_object()
+
+        if request.method == "DELETE":
+            Favourite.objects.filter(user_id=user.id, product=product).delete()
+            return Response({"favourited": False})
+
+        # get_or_create rather than create: saving twice is the same as saving
+        # once, so this answers the same way however many times it is called.
+        Favourite.objects.get_or_create(user_id=user.id, product=product)
+        return Response({"favourited": True}, status=status.HTTP_201_CREATED)
+
     def perform_create(self, serializer) -> None:
         serializer.save(artisan=self._artisan_profile())
 
@@ -307,3 +348,37 @@ class ProductViewSet(viewsets.ModelViewSet):
         if user is None:
             return None
         return ArtisanProfile.objects.filter(user_id=user.id).first()
+
+
+class FavouriteList(APIView):
+    """The pieces this shopper saved, newest first.
+
+    Never cached and never public: the answer is different for every person,
+    which is exactly why it is its own endpoint rather than a field on the
+    product list.
+    """
+
+    permission_classes = [permissions.AllowAny]  # authorisation is by identity below
+
+    def get(self, request: Request) -> Response:
+        user = current_user(request)
+        if user is None:
+            return Response(
+                {"detail": "Sign in to see what you saved."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        saved = (
+            Favourite.objects.filter(user_id=user.id)
+            .select_related("product__artisan", "product__craft")
+            .prefetch_related("product__images")
+        )
+        products = [favourite.product for favourite in saved]
+        return Response(
+            {
+                "results": ProductSerializer(products, many=True).data,
+                # The slugs alone, so a page can mark hearts without carrying
+                # every listing again.
+                "slugs": [product.slug for product in products],
+            }
+        )

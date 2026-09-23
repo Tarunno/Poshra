@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { PackageSearch, Search } from "lucide-react";
 import { Pagination } from "@/components/pagination";
+import { savedSlugs } from "@/lib/favourite-actions";
 import { ProductGrid, ProductGridSkeleton } from "@/components/product-grid";
 import { ShopSidebar, type ActiveFilters } from "@/components/shop-sidebar";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,13 @@ async function Results({
 }: {
   query: ProductQuery & { offset: number };
 }) {
-  const page = await listProducts({ ...query, limit: PAGE_SIZE });
+  // Two requests, on purpose. The catalogue is shared and cached; what this
+  // shopper saved is theirs alone and never cached. Folding the second into
+  // the first would poison the cache with one person's hearts.
+  const [page, saved] = await Promise.all([
+    listProducts({ ...query, limit: PAGE_SIZE }),
+    savedSlugs(),
+  ]);
 
   if (page.count === 0) {
     return (
@@ -79,7 +86,7 @@ async function Results({
 
   return (
     <div className="space-y-10">
-      <ProductGrid products={page.results} />
+      <ProductGrid products={page.results} saved={saved} actions />
       <Pagination
         count={page.count}
         limit={PAGE_SIZE}

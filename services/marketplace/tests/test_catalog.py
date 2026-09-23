@@ -557,3 +557,67 @@ def test_another_artisan_cannot_remove_a_photograph(client, artisan, other_artis
 
     assert client.delete(f"{PRODUCTS}/{product.slug}/images/{image.id}").status_code == 403
     assert ProductImage.objects.filter(pk=image.id).exists()
+
+
+# --- saved pieces --------------------------------------------------------------
+
+FAVOURITES = "/favourites"
+
+
+def test_saving_a_piece_twice_is_the_same_as_once(client, artisan, craft, product):
+    from catalog.models import Favourite
+
+    sign_in(client, artisan.user.email)
+    assert client.post(f"{PRODUCTS}/{product.slug}/favourite").status_code == 201
+    assert client.post(f"{PRODUCTS}/{product.slug}/favourite").status_code == 201
+
+    # The endpoint is "make it true", not "add one".
+    assert Favourite.objects.count() == 1
+
+
+def test_unsaving_a_piece_that_was_never_saved_is_not_an_error(client, artisan, craft, product):
+    sign_in(client, artisan.user.email)
+    response = client.delete(f"{PRODUCTS}/{product.slug}/favourite")
+    assert response.status_code == 200
+    assert response.json() == {"favourited": False}
+
+
+def test_saved_pieces_are_only_your_own(client, artisan, other_artisan, craft, product):
+    sign_in(client, artisan.user.email)
+    client.post(f"{PRODUCTS}/{product.slug}/favourite")
+    client.post("/auth/logout")
+
+    sign_in(client, other_artisan.user.email)
+    body = client.get(FAVOURITES).json()
+
+    # Whether *you* saved something is per-person, which is why it is not a
+    # field on the shared, cached product list.
+    assert body["results"] == []
+    assert body["slugs"] == []
+
+
+def test_saved_pieces_need_a_session(client):
+    assert client.get(FAVOURITES).status_code == 401
+
+
+def test_saving_needs_a_session(client, artisan, craft, product):
+    assert client.post(f"{PRODUCTS}/{product.slug}/favourite").status_code == 401
+
+
+def test_the_saved_list_returns_the_pieces_and_their_slugs(client, artisan, craft, product):
+    sign_in(client, artisan.user.email)
+    client.post(f"{PRODUCTS}/{product.slug}/favourite")
+
+    body = client.get(FAVOURITES).json()
+    assert body["slugs"] == [product.slug]
+    assert body["results"][0]["title"] == product.title
+
+
+def test_a_buyer_can_save_a_piece(client, db, artisan, craft, product):
+    # The viewset refuses writes from anyone who is not an artisan, which is
+    # right for listings and wrong for this: saving is what buyers do.
+    User.objects.create_user(email="buyer@poshra.test", password=PASSWORD, role=Role.BUYER)
+    sign_in(client, "buyer@poshra.test")
+
+    assert client.post(f"{PRODUCTS}/{product.slug}/favourite").status_code == 201
+    assert client.get(FAVOURITES).json()["slugs"] == [product.slug]

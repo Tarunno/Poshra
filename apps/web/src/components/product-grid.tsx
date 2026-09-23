@@ -2,11 +2,25 @@ import { ProductCard } from "@/components/product-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Product } from "@/lib/catalog";
 
-export function ProductGrid({ products }: { products: Product[] }) {
+export function ProductGrid({
+  products,
+  saved,
+  actions = false,
+}: {
+  products: Product[];
+  /** The slugs this shopper saved, fetched once for the page. */
+  saved?: Set<string>;
+  actions?: boolean;
+}) {
   return (
     <div className="grid grid-cols-2 gap-x-5 gap-y-9 lg:grid-cols-3">
       {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
+        <ProductCard
+          key={product.id}
+          product={product}
+          actions={actions}
+          saved={saved?.has(product.slug) ?? false}
+        />
       ))}
     </div>
   );
