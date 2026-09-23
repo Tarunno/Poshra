@@ -455,3 +455,78 @@ def test_publishing_stock_is_skipped_without_a_broker(artisan, craft, product, s
     # tests would need a broker.
     settings.KAFKA_BROKERS = []
     publish_stock(product)  # must not raise
+
+
+# --- photographs ---------------------------------------------------------------
+
+
+def _png_bytes(size=(20, 20)) -> bytes:
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", size, (200, 120, 60)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def test_an_upload_is_decoded_and_re_encoded(tmp_path):
+    from catalog.media import _normalise
+
+    body, content_type, extension = _normalise(_png_bytes())
+
+    # Re-encoding is what proves the bytes are really an image and drops EXIF
+    # with them — a photograph carries GPS, and an artisan's home should not
+    # ship with their listing.
+    assert content_type == "image/jpeg"
+    assert extension == "jpg"
+    assert body[:2] == b"\xff\xd8"  # a real JPEG, whatever arrived
+
+
+def test_a_file_that_is_not_an_image_is_refused():
+    from catalog.media import UploadRejected, _normalise
+
+    with pytest.raises(UploadRejected):
+        _normalise(b"GIF89a<?php echo 'hello'; ?>")
+
+
+def test_an_oversized_upload_is_refused_before_it_is_decoded():
+    from catalog.media import MAX_BYTES, UploadRejected, store_image
+
+    with pytest.raises(UploadRejected, match="under"):
+        store_image(b"x" * (MAX_BYTES + 1), "image/jpeg", prefix="products/x")
+
+
+def test_a_huge_photograph_is_scaled_down():
+    from catalog.media import MAX_EDGE, _normalise
+
+    body, _, _ = _normalise(_png_bytes((MAX_EDGE * 2, MAX_EDGE * 2)))
+
+    import io
+
+    from PIL import Image
+
+    assert max(Image.open(io.BytesIO(body)).size) == MAX_EDGE
+
+
+def test_only_the_owner_may_add_a_photograph(client, artisan, other_artisan, craft, product):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    sign_in(client, other_artisan.user.email)
+    response = client.post(
+        f"{PRODUCTS}/{product.slug}/images",
+        {"file": SimpleUploadedFile("p.png", _png_bytes(), content_type="image/png")},
+    )
+    # A role alone is not authorisation: without the object-level check any
+    # artisan could photograph any other artisan's work.
+    assert response.status_code == 403
+
+
+def test_a_stranger_cannot_add_a_photograph(client, artisan, craft, product):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    response = client.post(
+        f"{PRODUCTS}/{product.slug}/images",
+        {"file": SimpleUploadedFile("p.png", _png_bytes(), content_type="image/png")},
+    )
+    assert response.status_code in (401, 403)

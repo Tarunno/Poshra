@@ -13,6 +13,7 @@ labels:
 resources:
   - namespace.yaml
   - postgres.yaml
+  - minio.yaml
   - marketplace.yaml
   - assistant.yaml
   - sales-consumer.yaml
@@ -50,6 +51,12 @@ configMapGenerator:
       # Kong verifies tokens and injects the identity header, so the service
       # has no second validation path of its own.
       - AUTH_COOKIE_FALLBACK=false
+      # Where this service writes photographs, and where a browser reads them.
+      # They differ: one is inside the cluster, the other goes through the
+      # gateway, and a URL stored in the database must be the browser's.
+      - MEDIA_ENDPOINT=http://minio:9000
+      - MEDIA_BUCKET=poshra-media
+      - MEDIA_PUBLIC_BASE=http://192.168.110.201/media
 
 images:
   - name: ghcr.io/tarunno/poshra/marketplace

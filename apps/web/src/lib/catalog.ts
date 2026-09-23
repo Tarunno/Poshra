@@ -43,6 +43,7 @@ export type Artisan = ArtisanSummary & {
 };
 
 export type ProductImage = {
+  id: number;
   url: string;
   alt_text: string;
   position: number;

@@ -32,6 +32,15 @@ SALES_CONSUMER_GROUP = env_str("SALES_CONSUMER_GROUP", "marketplace-sales-readmo
 # Where this service announces what it has to sell, for the inventory ledger.
 STOCK_TOPIC = env_str("STOCK_TOPIC", "poshra.catalog.stock.changed.v1")
 
+# Object storage for photographs. The endpoint is where this service writes;
+# the public base is what a browser reads, through the gateway. They differ,
+# and the URL kept in the database must be the browser's.
+MEDIA_ENDPOINT = env_str("MEDIA_ENDPOINT", "http://localhost:9000")
+MEDIA_BUCKET = env_str("MEDIA_BUCKET", "poshra-media")
+MEDIA_PUBLIC_BASE = env_str("MEDIA_PUBLIC_BASE", "http://localhost:8080/media")
+MEDIA_ACCESS_KEY = env_str("MEDIA_ACCESS_KEY", "poshra")
+MEDIA_SECRET_KEY = env_str("MEDIA_SECRET_KEY", "poshra-dev-secret")
+
 AUTH_USER_MODEL = "accounts.User"
 
 # Argon2id is the current recommendation for password hashing; the others stay

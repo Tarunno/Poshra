@@ -66,6 +66,10 @@ k8s-secrets: ## Create namespace + generated secrets (passwords and keys, made o
 		rm -rf $$tmp )
 	@kubectl -n poshra get secret
 
+	@kubectl -n poshra get secret poshra-media >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-media \
+		--from-literal=MEDIA_ACCESS_KEY=poshra \
+		--from-literal=MEDIA_SECRET_KEY=$$(openssl rand -hex 24)
+
 # Separate from k8s-secrets: this one cannot be generated, so it is supplied
 # rather than made, and it is never written to a file in the repo.
 k8s-secret-anthropic: ## Store the Anthropic API key (ANTHROPIC_API_KEY=sk-... make k8s-secret-anthropic)

@@ -1,10 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { BadgeCheck, MapPin, Package, Ruler } from "lucide-react";
 import { AddToCart } from "@/components/add-to-cart";
-import { CraftTile } from "@/components/craft-tile";
+import { ProductGallery } from "@/components/product-gallery";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KanthaRule } from "@/components/motifs";
@@ -70,24 +69,7 @@ export default async function ProductPage({ params }: { params: Params }) {
 
       <div className="grid gap-10 lg:grid-cols-2">
         <figure className="space-y-2">
-          <div className="rounded-panel relative aspect-[4/5] overflow-hidden">
-            {image ? (
-              <Image
-                src={image.url}
-                alt={image.alt_text || product.title}
-                fill
-                priority
-                sizes="(min-width: 1024px) 45vw, 100vw"
-                className="object-cover"
-              />
-            ) : (
-              <CraftTile
-                craftSlug={product.craft.slug}
-                seedKey={product.slug}
-                className="size-full"
-              />
-            )}
-          </div>
+          <ProductGallery product={product} />
           {image?.credit && (
             <figcaption className="text-xs opacity-60">
               Photograph:{" "}

@@ -9,14 +9,17 @@ from django.db import connection
 from django.db.models import Count, Max, Min, Q, QuerySet
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from catalog.models import ArtisanProfile, Craft, Product, ProductStatus
+from catalog.media import UploadRejected, delete_image, store_image
+from catalog.models import ArtisanProfile, Craft, Product, ProductImage, ProductStatus
 from catalog.permissions import ReadOnlyOrArtisanOwner, current_user
 from catalog.serializers import (
     ArtisanSerializer,
     CraftSerializer,
+    ProductImageSerializer,
     ProductSerializer,
     ProductWriteSerializer,
 )
@@ -215,6 +218,72 @@ class ProductViewSet(viewsets.ModelViewSet):
                 .count(),
             }
         )
+
+    # A piece photographed from every angle is still one listing; more than
+    # this is a gallery nobody scrolls and storage nobody reclaims.
+    MAX_IMAGES = 8
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="images",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def add_image(self, request: Request, slug: str | None = None) -> Response:
+        """Attach a photograph to a listing the caller owns."""
+        product = self.get_object()
+        # Object-level authorisation: a role alone would let any artisan
+        # photograph any other artisan's work.
+        self.check_object_permissions(request, product)
+
+        upload = request.FILES.get("file")
+        if upload is None:
+            return Response({"detail": "Attach a file."}, status=status.HTTP_400_BAD_REQUEST)
+        if product.images.count() >= self.MAX_IMAGES:
+            return Response(
+                {"detail": f"A listing can have {self.MAX_IMAGES} photographs."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            stored = store_image(
+                upload.read(), upload.content_type or "", prefix=f"products/{product.id}"
+            )
+        except UploadRejected as error:
+            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+        last = product.images.order_by("-position").first()
+        image = ProductImage.objects.create(
+            product=product,
+            url=stored.url,
+            alt_text=(request.data.get("alt_text") or "")[:200],
+            position=(last.position + 1) if last else 0,
+            # The artisan photographed their own work, so there is no third
+            # party to credit and no licence to carry.
+        )
+        return Response(ProductImageSerializer(image).data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"images/(?P<image_id>[0-9]+)",
+    )
+    def remove_image(
+        self, request: Request, slug: str | None = None, image_id: str | None = None
+    ) -> Response:
+        product = self.get_object()
+        self.check_object_permissions(request, product)
+
+        image = product.images.filter(pk=image_id).first()
+        if image is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        url = image.url
+        image.delete()
+        # After the row, not before: a listing pointing at a deleted object is
+        # worse than an object nothing points at.
+        delete_image(url)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def perform_create(self, serializer) -> None:
         serializer.save(artisan=self._artisan_profile())

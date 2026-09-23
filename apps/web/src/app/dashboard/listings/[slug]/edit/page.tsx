@@ -3,10 +3,14 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { ListingForm } from "@/components/listing-form";
+import { ListingPhotos } from "@/components/listing-photos";
 import { getCurrentUser } from "@/lib/api";
 import { listCrafts, listMyProducts } from "@/lib/catalog";
 
 export const metadata = { title: "Edit a listing — Poshra" };
+
+// Matches ProductViewSet.MAX_IMAGES; the API is what enforces it.
+const MAX_IMAGES = 8;
 
 export default async function EditListingPage({
   params,
@@ -42,6 +46,14 @@ export default async function EditListingPage({
       <h1 className="text-3xl font-extrabold tracking-tight text-balance">
         {product.title}
       </h1>
+
+      <section className="bg-tint-mint rounded-panel stitched p-6 sm:p-8">
+        <ListingPhotos
+          slug={product.slug}
+          images={product.images}
+          max={MAX_IMAGES}
+        />
+      </section>
 
       <section className="bg-tint-lilac rounded-panel stitched p-6 sm:p-8">
         <ListingForm crafts={crafts} product={product} />

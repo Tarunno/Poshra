@@ -30,6 +30,10 @@ export default async function NewListingPage() {
       <section className="bg-tint-lilac rounded-panel stitched p-6 sm:p-8">
         <ListingForm crafts={crafts} />
       </section>
+
+      <p className="px-1 text-sm opacity-60">
+        Photographs come next: save the listing, and you can add up to eight.
+      </p>
     </div>
   );
 }

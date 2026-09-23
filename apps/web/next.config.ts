@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "thumb.wikimedia.org" },
       { protocol: "https", hostname: "upload.wikimedia.org" },
+      // Photographs artisans upload, served from MinIO through the gateway.
+      // A real deployment would name a hostname here rather than the LAN
+      // address this cluster answers on.
+      { protocol: "http", hostname: "192.168.110.201", pathname: "/media/**" },
+      { protocol: "http", hostname: "localhost", pathname: "/media/**" },
     ],
   },
   /* config options here */

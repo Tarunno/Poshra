@@ -98,6 +98,21 @@ services:
               burst: 8
               limit_by: ip
 
+  # Photographs. The bucket is public — these are on a public storefront — so
+  # this route carries no identity plugin; the credentials guard writes only,
+  # and writes never come this way.
+  - name: media
+    url: http://minio:9000/poshra-media
+    connect_timeout: 2000
+    read_timeout: 15000
+    routes:
+      - name: media-objects
+        paths:
+          - /media
+        strip_path: true
+        methods: [GET, HEAD]
+        protocols: [http, https]
+
   # The shopping assistant. Every answer is a paid model call, so this is the
   # most tightly limited route on the gateway and it never retries: a replayed
   # request is a second bill for an answer nobody read.

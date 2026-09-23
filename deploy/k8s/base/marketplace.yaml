@@ -58,6 +58,10 @@ spec:
             # broker is unreachable, and the nightly reconciler repairs it.
             - name: KAFKA_BROKERS
               value: poshra-kafka-bootstrap:9092
+            - name: MEDIA_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: poshra-media, key: MEDIA_ACCESS_KEY } }
+            - name: MEDIA_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: poshra-media, key: MEDIA_SECRET_KEY } }
           ports:
             - name: http
               containerPort: 8000
