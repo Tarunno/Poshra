@@ -219,6 +219,7 @@ func loadTestConfig() (config.Config, error) {
 	_ = os.Setenv("DATABASE_URL", "postgres://unused")
 	_ = os.Setenv("INVENTORY_ADDR", "bufnet")
 	_ = os.Setenv("CATALOG_URL", "http://unused")
+	_ = os.Setenv("KAFKA_BROKERS", "unused:9092")
 	return config.Load()
 }
 

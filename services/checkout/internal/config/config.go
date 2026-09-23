@@ -5,6 +5,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -14,6 +15,10 @@ type Config struct {
 	InventoryURL string
 	CatalogURL   string
 	LogLevel     string
+
+	// Where the outbox relay publishes. Several addresses are only seeds: the
+	// client learns the rest of the cluster from the first broker that answers.
+	KafkaBrokers []string
 
 	// One budget per outbound hop, so a slow dependency cannot consume the
 	// whole request and leave the caller waiting.
@@ -36,12 +41,20 @@ func Load() (Config, error) {
 	if catalog == "" {
 		return Config{}, fmt.Errorf("CATALOG_URL is required")
 	}
+	// Refusing to start is the safer failure: a checkout that runs without a
+	// relay takes orders and never announces them, and nothing looks wrong
+	// until another service is found to be missing half its data.
+	brokers := splitList(os.Getenv("KAFKA_BROKERS"))
+	if len(brokers) == 0 {
+		return Config{}, fmt.Errorf("KAFKA_BROKERS is required")
+	}
 
 	return Config{
 		DatabaseURL:      dsn,
 		HTTPAddr:         envOr("HTTP_ADDR", ":8080"),
 		InventoryURL:     inventory,
 		CatalogURL:       catalog,
+		KafkaBrokers:     brokers,
 		LogLevel:         envOr("LOG_LEVEL", "info"),
 		InventoryTimeout: 800 * time.Millisecond,
 		CatalogTimeout:   2 * time.Second,
@@ -50,6 +63,17 @@ func Load() (Config, error) {
 		// checkouts return stock quickly.
 		ReservationTTL: 15 * time.Minute,
 	}, nil
+}
+
+// splitList reads a comma-separated environment value, ignoring spacing.
+func splitList(value string) []string {
+	var out []string
+	for _, part := range strings.Split(value, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func envOr(key, fallback string) string {

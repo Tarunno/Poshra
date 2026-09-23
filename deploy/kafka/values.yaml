@@ -1,0 +1,10 @@
+# Strimzi operator, scoped to the namespace it manages.
+watchNamespaces: []
+watchAnyNamespace: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 192Mi
+  limits:
+    memory: 512Mi

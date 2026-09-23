@@ -421,15 +421,18 @@ func (s *Store) orderItems(ctx context.Context, orderID string) ([]OrderItem, er
 	return items, rows.Err()
 }
 
-// UnpublishedEvents feeds the relay that will publish to Kafka.
-func (s *Store) UnpublishedEvents(ctx context.Context, limit int) ([]struct {
+// PendingEvent is an outbox row on its way to Kafka.
+type PendingEvent struct {
 	ID      int64
 	Topic   string
 	Key     string
 	Payload []byte
 	Headers []byte
-}, error,
-) {
+}
+
+// UnpublishedEvents lists rows the relay has not sent yet. It takes no locks,
+// so it is for inspection and tests; PublishBatch is what the relay uses.
+func (s *Store) UnpublishedEvents(ctx context.Context, limit int) ([]PendingEvent, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT id, topic, aggregate_id, payload, headers
 		   FROM outbox WHERE published_at IS NULL ORDER BY id LIMIT $1`, limit)
@@ -438,21 +441,9 @@ func (s *Store) UnpublishedEvents(ctx context.Context, limit int) ([]struct {
 	}
 	defer rows.Close()
 
-	var events []struct {
-		ID      int64
-		Topic   string
-		Key     string
-		Payload []byte
-		Headers []byte
-	}
+	var events []PendingEvent
 	for rows.Next() {
-		var event struct {
-			ID      int64
-			Topic   string
-			Key     string
-			Payload []byte
-			Headers []byte
-		}
+		var event PendingEvent
 		if err := rows.Scan(&event.ID, &event.Topic, &event.Key,
 			&event.Payload, &event.Headers); err != nil {
 			return nil, err
@@ -460,4 +451,68 @@ func (s *Store) UnpublishedEvents(ctx context.Context, limit int) ([]struct {
 		events = append(events, event)
 	}
 	return events, rows.Err()
+}
+
+// PublishBatch claims a batch of unpublished events, hands them to send, and
+// marks them published if send succeeds.
+//
+// The claim uses FOR UPDATE SKIP LOCKED so several replicas can relay at once:
+// each takes rows the others are not holding instead of queueing behind them.
+// Sending happens inside that transaction, so a failed send rolls back and the
+// rows are simply picked up on the next pass.
+//
+// The one thing it cannot promise is exactly-once: if the send succeeds and
+// the commit does not, the event goes out again. That is why every consumer of
+// these events has to be idempotent.
+func (s *Store) PublishBatch(
+	ctx context.Context, limit int, send func([]PendingEvent) error,
+) (int, error) {
+	var claimed int
+
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx,
+			`SELECT id, topic, aggregate_id, payload, headers
+			   FROM outbox
+			  WHERE published_at IS NULL
+			  ORDER BY id
+			  LIMIT $1
+			  FOR UPDATE SKIP LOCKED`, limit)
+		if err != nil {
+			return err
+		}
+
+		var events []PendingEvent
+		for rows.Next() {
+			var event PendingEvent
+			if err := rows.Scan(&event.ID, &event.Topic, &event.Key,
+				&event.Payload, &event.Headers); err != nil {
+				rows.Close()
+				return err
+			}
+			events = append(events, event)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		if len(events) == 0 {
+			return nil
+		}
+
+		if err := send(events); err != nil {
+			return err
+		}
+
+		ids := make([]int64, 0, len(events))
+		for _, event := range events {
+			ids = append(ids, event.ID)
+		}
+		if _, err := tx.Exec(ctx,
+			`UPDATE outbox SET published_at = now() WHERE id = ANY($1)`, ids); err != nil {
+			return err
+		}
+		claimed = len(events)
+		return nil
+	})
+	return claimed, err
 }

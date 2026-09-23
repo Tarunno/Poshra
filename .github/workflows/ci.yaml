@@ -197,7 +197,7 @@ jobs:
       - name: Set image tags to this commit
         working-directory: deploy/k8s/overlays/local
         run: |
-          sed -i "s|newTag: .*|newTag: ${{ github.sha }}|" kustomization.yaml
+          sed -i "/^#/! s|newTag: .*|newTag: ${{ github.sha }}|" kustomization.yaml
           cat kustomization.yaml
 
       - name: Commit if changed

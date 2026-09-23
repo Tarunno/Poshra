@@ -50,6 +50,11 @@ spec:
             # service cannot bypass its policies either.
             - name: CATALOG_URL
               value: http://kong-proxy/internal/marketplace
+            # The bootstrap Service is only an entry point: the client asks it
+            # which broker leads each partition and then talks to that broker
+            # directly, so this stays correct as the cluster grows.
+            - name: KAFKA_BROKERS
+              value: poshra-kafka-bootstrap:9092
             - name: HTTP_ADDR
               value: ":8080"
           ports:

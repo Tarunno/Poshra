@@ -1,0 +1,104 @@
+# Kafka for Poshra, sized for a three-node home cluster.
+#
+# KRaft mode: the cluster manages its own metadata, with no ZooKeeper. One
+# broker means no real durability — a lost broker is a lost partition — which
+# is fine for a lab but is the first thing to change in production, where
+# replicas of 3 and min.insync.replicas of 2 let a broker die without data loss.
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: combined
+  labels:
+    strimzi.io/cluster: poshra
+spec:
+  replicas: 1
+  # One pool doing both jobs. Separate controller and broker pools are the
+  # production shape; here it halves the memory footprint.
+  roles:
+    - controller
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 5Gi
+        class: local-path
+        # Keeping the volume means a redeploy does not lose the log.
+        deleteClaim: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      memory: 1500Mi
+  jvmOptions:
+    # Leave room inside the limit for page cache and off-heap buffers; Kafka
+    # relies on the page cache far more than on its heap.
+    -Xms: 512m
+    -Xmx: 768m
+---
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: poshra
+  annotations:
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
+spec:
+  kafka:
+    version: 4.3.1
+    metadataVersion: 4.3-IV0
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+        # Without this Strimzi opens 9092 to every pod in the namespace. Naming
+        # the peers keeps the broker as closed as the databases are: only the
+        # services that actually produce or consume can reach it.
+        networkPolicyPeers:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: checkout
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: inventory
+    config:
+      # One broker, so nothing can be replicated further than that. These
+      # values must rise with the broker count.
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
+      # Refuse to create a topic implicitly: a typo in a topic name should
+      # fail loudly, not silently create a new, empty topic.
+      auto.create.topics.enable: "false"
+      log.retention.hours: 168
+  entityOperator:
+    topicOperator:
+      resources:
+        requests: { cpu: 25m, memory: 192Mi }
+        limits: { memory: 384Mi }
+    userOperator:
+      resources:
+        requests: { cpu: 25m, memory: 192Mi }
+        limits: { memory: 384Mi }
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: poshra.orders.created.v1
+  labels:
+    strimzi.io/cluster: poshra
+spec:
+  # Partitions are the unit of parallelism: a consumer group can never have
+  # more working members than partitions. Three leaves room to scale the
+  # consumers without repartitioning, which would disturb ordering.
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: "604800000" # a week: long enough to replay after an outage
+    cleanup.policy: delete

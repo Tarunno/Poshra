@@ -22,6 +22,7 @@ import (
 	"github.com/Tarunno/Poshra/services/checkout/internal/config"
 	"github.com/Tarunno/Poshra/services/checkout/internal/logging"
 	"github.com/Tarunno/Poshra/services/checkout/internal/payment"
+	"github.com/Tarunno/Poshra/services/checkout/internal/relay"
 	"github.com/Tarunno/Poshra/services/checkout/internal/store"
 	inventoryv1 "github.com/Tarunno/Poshra/services/inventory/gen/poshra/inventory/v1"
 )
@@ -86,6 +87,20 @@ func run(cfg config.Config, log *slog.Logger, db *store.Store) error {
 	}
 	defer conn.Close()
 
+	// The relay is the other half of the outbox: orders commit an event into
+	// the database, and this loop is what carries it to Kafka. It is part of
+	// the service rather than a separate deployment because it only ever reads
+	// this service's own table.
+	outbox, err := relay.New(db, cfg.KafkaBrokers, log)
+	if err != nil {
+		return err
+	}
+	defer outbox.Close()
+
+	relayCtx, stopRelay := context.WithCancel(context.Background())
+	defer stopRelay()
+	go outbox.Run(relayCtx)
+
 	server := api.New(
 		cfg, log, db,
 		catalog.New(cfg.CatalogURL, cfg.CatalogTimeout),
@@ -120,6 +135,11 @@ func run(cfg config.Config, log *slog.Logger, db *store.Store) error {
 	case <-stop:
 		log.Info("shutting down")
 	}
+
+	// Stop claiming new batches, but let the in-flight one finish: a send that
+	// is cut off mid-flight would simply be retried, yet stopping cleanly keeps
+	// the duplicate out of the consumers.
+	stopRelay()
 
 	// Let in-flight orders finish: cutting a request between charging and
 	// writing the order is exactly the case the saga works hardest to avoid.
