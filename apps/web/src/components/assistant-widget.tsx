@@ -63,8 +63,9 @@ export function AssistantWidget() {
           </Button>
         </header>
 
-        {/* The only scrolling region, so the composer stays put. */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        {/* The chat arranges itself: a scrolling transcript with the composer
+            fixed beneath it. This only gives it the room. */}
+        <div className="min-h-0 flex-1 px-4 py-4">
           <ShoppingChat compact />
         </div>
       </div>

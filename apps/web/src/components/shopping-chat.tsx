@@ -69,106 +69,117 @@ export function ShoppingChat({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <div className="space-y-5">
-      {entries.length === 0 && (
-        <div
-          className={
-            compact
-              ? "bg-tint-sky rounded-2xl p-5"
-              : "bg-tint-sky rounded-panel stitched p-7 sm:p-9"
-          }
-        >
-          <p className="bg-background/70 text-ink-sky inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase">
-            <Sparkles className="size-3.5" aria-hidden />
-            Ask for what you want
-          </p>
-          <h2
-            className={`mt-4 max-w-lg leading-snug font-bold tracking-tight text-balance ${
-              compact ? "text-base" : "text-2xl"
-            }`}
+    <div className={compact ? "flex h-full flex-col" : "space-y-5"}>
+      <div
+        className={
+          // In the panel this is the only thing that scrolls, which is what
+          // keeps the composer pinned to the bottom instead of drifting up
+          // behind the conversation.
+          compact
+            ? "min-h-0 flex-1 space-y-5 overflow-y-auto pr-1"
+            : "space-y-5"
+        }
+      >
+        {entries.length === 0 && (
+          <div
+            className={
+              compact
+                ? "bg-tint-sky rounded-2xl p-5"
+                : "bg-tint-sky rounded-panel stitched p-7 sm:p-9"
+            }
           >
-            Describe the piece you are looking for, the way you would to a
-            shopkeeper.
-          </h2>
-          <div className="mt-6 flex flex-wrap gap-2">
-            {OPENERS.map((opener) => (
-              <Button
-                key={opener}
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="bg-background/70 rounded-full"
-                onClick={() => send(opener)}
-              >
-                {opener}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {entries.map((entry, index) => (
-        <div key={index}>
-          {entry.role === "user" ? (
-            <p className="bg-tint-lilac ml-auto max-w-lg rounded-3xl px-5 py-3 text-sm font-medium">
-              {entry.content}
+            <p className="bg-background/70 text-ink-sky inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase">
+              <Sparkles className="size-3.5" aria-hidden />
+              Ask for what you want
             </p>
-          ) : (
-            <div className="space-y-5">
-              <p className="max-w-2xl text-[0.95rem] leading-relaxed whitespace-pre-wrap">
+            <h2
+              className={`mt-4 max-w-lg leading-snug font-bold tracking-tight text-balance ${
+                compact ? "text-base" : "text-2xl"
+              }`}
+            >
+              Describe the piece you are looking for, the way you would to a
+              shopkeeper.
+            </h2>
+            <div className="mt-6 flex flex-wrap gap-2">
+              {OPENERS.map((opener) => (
+                <Button
+                  key={opener}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="bg-background/70 rounded-full"
+                  onClick={() => send(opener)}
+                >
+                  {opener}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {entries.map((entry, index) => (
+          <div key={index}>
+            {entry.role === "user" ? (
+              <p className="bg-tint-lilac ml-auto max-w-lg rounded-3xl px-5 py-3 text-sm font-medium">
                 {entry.content}
               </p>
-              {entry.checkoutReady && (
-                // The assistant totals a cart; paying happens on the checkout
-                // page, where the order is reviewed and the idempotency key is
-                // minted. The model has no way to take money.
-                <Button asChild size="lg" className="rounded-full px-7">
-                  <Link href="/checkout">Review and pay</Link>
-                </Button>
-              )}
-              {entry.products && entry.products.length > 0 && (
-                <div
-                  className={
-                    compact
-                      ? "grid grid-cols-1 gap-4"
-                      : "grid grid-cols-2 gap-5 lg:grid-cols-3"
-                  }
-                >
-                  {entry.products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      ))}
+            ) : (
+              <div className="space-y-5">
+                <p className="max-w-2xl text-[0.95rem] leading-relaxed whitespace-pre-wrap">
+                  {entry.content}
+                </p>
+                {entry.checkoutReady && (
+                  // The assistant totals a cart; paying happens on the checkout
+                  // page, where the order is reviewed and the idempotency key is
+                  // minted. The model has no way to take money.
+                  <Button asChild size="lg" className="rounded-full px-7">
+                    <Link href="/checkout">Review and pay</Link>
+                  </Button>
+                )}
+                {entry.products && entry.products.length > 0 && (
+                  <div
+                    className={
+                      compact
+                        ? "grid grid-cols-1 gap-4"
+                        : "grid grid-cols-2 gap-5 lg:grid-cols-3"
+                    }
+                  >
+                    {entry.products.map((product) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
 
-      {pending && (
-        <p aria-live="polite" className="text-sm opacity-60">
-          Looking through the workshops…
-        </p>
-      )}
+        {pending && (
+          <p aria-live="polite" className="text-sm opacity-60">
+            Looking through the workshops…
+          </p>
+        )}
 
-      {error && (
-        <p
-          role="alert"
-          className="text-ink-rose flex items-center gap-1.5 text-sm font-medium"
-        >
-          <AlertCircle className="size-4" aria-hidden />
-          {error}
-        </p>
-      )}
+        {error && (
+          <p
+            role="alert"
+            className="text-ink-rose flex items-center gap-1.5 text-sm font-medium"
+          >
+            <AlertCircle className="size-4" aria-hidden />
+            {error}
+          </p>
+        )}
 
-      <div ref={endRef} />
+        <div ref={endRef} />
+      </div>
 
       <form
         onSubmit={(event) => {
           event.preventDefault();
           send(draft);
         }}
-        className={`bg-background flex items-center gap-2 rounded-full p-2 shadow-sm ${
-          compact ? "" : "sticky bottom-4"
+        className={`bg-background flex items-center gap-2 rounded-full p-2 ${
+          compact ? "mt-3 shrink-0 border" : "sticky bottom-4 shadow-sm"
         }`}
       >
         <label htmlFor="question" className="sr-only">
