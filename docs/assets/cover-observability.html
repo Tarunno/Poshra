@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="cover-base.css">
+<style>
+  body { background:
+    radial-gradient(1200px 700px at 78% 12%, var(--mint) 0%, transparent 60%),
+    radial-gradient(1000px 620px at 6% 90%, var(--rose) 0%, transparent 62%), var(--sky); }
+  .laptop { left:40px; bottom:104px; width:900px; }
+  .laptop .base { width:1010px; margin-left:-55px; }
+  .b1 { top:66px; right:52px; width:860px; transform:rotate(1.4deg); }
+  /* argo: the 900x495 corner of a 2000x985 capture — the rest of that page is empty */
+  .b2 { bottom:84px; right:52px; width:600px; transform:rotate(-1.6deg); }
+  .b2 .crop { height:330px; }
+  .b2 .crop img { width:1333px; left:0; top:0; }
+</style></head><body>
+  <div class="label">
+    <div class="eyebrow">পসরা · Poshra</div>
+    <h2>One request, end to end.</h2>
+    <p>A single trace from the gateway through checkout into the Kafka consumers, a service
+       map drawn from real traffic, and a cluster that only changes through git.</p>
+  </div>
+
+  <div class="browser b1">
+    <div class="chrome"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="bar">hubble.poshra.local — service map</span></div>
+    <img class="shot" src="cap-hubble.png" alt="">
+  </div>
+
+  <div class="browser b2">
+    <div class="chrome"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="bar">argocd.poshra.local/applications</span></div>
+    <div class="crop"><img src="cap-argocd.png" alt=""></div>
+  </div>
+
+  <div class="laptop">
+    <div class="lid"><div class="camera"></div><div class="screen"><img src="cap-trace.png" alt=""></div></div>
+    <div class="base"><div class="notch-base"></div></div>
+  </div>
+</body></html>
