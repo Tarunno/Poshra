@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -286,6 +288,22 @@ func (s *Server) placeOrder(
 		return nil, 0, nil, err
 	}
 	return &order, http.StatusCreated, body, nil
+}
+
+// traceHeaders writes the current trace context into the event.
+//
+// The outbox is where in-process propagation ends: this order's request is
+// finished long before the relay publishes the row, so the context cannot be
+// carried in a variable and has to be written down with the event. Everything
+// the event goes on to cause — the publish, both consumers, in two languages —
+// hangs off what is recorded here.
+func traceHeaders(ctx context.Context, headers map[string]string) map[string]string {
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	for key, value := range carrier {
+		headers[key] = value
+	}
+	return headers
 }
 
 // releaseQuietly compensates without letting the failure hide the original one.

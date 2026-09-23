@@ -11,15 +11,47 @@ import json
 import logging
 import signal
 import time
+from contextlib import contextmanager
 from typing import Any
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
+from config.telemetry import configure_tracing
 from sales.events import UnprocessableEvent, record_order
 
 log = logging.getLogger(__name__)
+
+
+@contextmanager
+def _span_for(message):
+    """Continue the producing trace, if the message carries one."""
+    try:
+        from opentelemetry import trace
+        from opentelemetry.propagate import extract
+        from opentelemetry.trace import SpanKind
+    except ImportError:  # tracing is optional
+        yield
+        return
+
+    carrier = {
+        key: value.decode() if isinstance(value, bytes) else str(value)
+        for key, value in (message.headers() or [])
+    }
+    tracer = trace.get_tracer("poshra/sales-consumer")
+    with tracer.start_as_current_span(
+        f"consume {message.topic()}",
+        context=extract(carrier),
+        kind=SpanKind.CONSUMER,
+        attributes={
+            "messaging.system": "kafka",
+            "messaging.destination.name": message.topic(),
+            "messaging.kafka.message.offset": message.offset(),
+            "messaging.destination.partition.id": str(message.partition()),
+        },
+    ):
+        yield
 
 
 class Command(BaseCommand):
@@ -51,6 +83,8 @@ class Command(BaseCommand):
             }
         )
         consumer.subscribe([options["topic"]])
+
+        configure_tracing("sales-consumer")
 
         running = True
 
@@ -88,7 +122,17 @@ class Command(BaseCommand):
             consumer.close()
 
     def _handle(self, message) -> bool:
-        """Record one event. Returns False only when it should be retried."""
+        """Record one event. Returns False only when it should be retried.
+
+        The record carries the trace of the order that produced it — written
+        into the outbox row in a Go service, published by another, and picked
+        up here. Joining it means one trace spans two languages and an
+        asynchronous boundary, and the gap before this span is consumer lag.
+        """
+        with _span_for(message):
+            return self._record(message)
+
+    def _record(self, message) -> bool:
         backoff = 0.5
         while True:
             try:

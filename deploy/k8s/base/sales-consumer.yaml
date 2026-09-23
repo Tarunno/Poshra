@@ -48,6 +48,12 @@ spec:
               valueFrom: { secretKeyRef: { name: poshra-jwt, key: JWT_PUBLIC_KEY_B64 } }
             - name: KAFKA_BROKERS
               value: poshra-kafka-bootstrap:9092
+            # Joins the trace the order carried into the topic, so a sale
+            # recorded here is part of the request that caused it.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observability.svc.cluster.local:4317
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
           resources:
             requests: { cpu: 25m, memory: 160Mi }
             limits: { memory: 320Mi }

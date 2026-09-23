@@ -3,9 +3,15 @@ package consumer
 import (
 	"context"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // handler processes one record. It returns an error to say "try again"; a
@@ -23,6 +29,7 @@ type terminalFn func(error) bool
 type group struct {
 	client       *kgo.Client
 	log          *slog.Logger
+	tracer       trace.Tracer
 	retryBackoff time.Duration
 	maxBackoff   time.Duration
 	handle       handler
@@ -60,6 +67,30 @@ func dial(brokers []string, groupID, topic string, log *slog.Logger) (*kgo.Clien
 }
 
 // run consumes until the context is cancelled.
+// startSpan continues the producer's trace, when the record carries one.
+func (g *group) startSpan(ctx context.Context, record *kgo.Record) (context.Context, trace.Span) {
+	carrier := propagation.MapCarrier{}
+	for _, header := range record.Headers {
+		carrier[header.Key] = string(header.Value)
+	}
+	// Extract before starting, so the span is a child of the publish rather
+	// than the root of a trace nobody can connect to anything.
+	ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
+
+	if g.tracer == nil {
+		g.tracer = otel.Tracer("poshra/kafka-consumer")
+	}
+	return g.tracer.Start(ctx, "consume "+record.Topic,
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(
+			semconv.MessagingSystemKafka,
+			semconv.MessagingDestinationName(record.Topic),
+			semconv.MessagingKafkaMessageOffset(int(record.Offset)),
+			semconv.MessagingDestinationPartitionID(strconv.Itoa(int(record.Partition))),
+		),
+	)
+}
+
 func (g *group) run(ctx context.Context) {
 	for {
 		fetches := g.client.PollRecords(ctx, 200)
@@ -96,7 +127,14 @@ func (g *group) run(ctx context.Context) {
 // process handles one record, retrying while the failure looks temporary. It
 // returns false only when the context is cancelled, which is the one case
 // where the record must not be marked done.
+//
+// The record carries the trace of whatever produced it, so this work joins
+// that story rather than starting a new one. A gap between the publish span
+// and this one is consumer lag, visible without a single metric.
 func (g *group) process(ctx context.Context, record *kgo.Record) bool {
+	ctx, span := g.startSpan(ctx, record)
+	defer span.End()
+
 	backoff := g.retryBackoff
 	for {
 		err := g.handle(ctx, record)
@@ -104,6 +142,8 @@ func (g *group) process(ctx context.Context, record *kgo.Record) bool {
 			return true
 		}
 		if g.terminal(err) {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "dropped")
 			// Retrying cannot help: a malformed payload stays malformed.
 			// Blocking the partition on it would stop every later event.
 			g.log.Error("dropping unprocessable event",

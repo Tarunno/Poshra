@@ -19,6 +19,11 @@ import (
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tarunno/Poshra/services/checkout/internal/store"
 )
@@ -27,6 +32,7 @@ type Relay struct {
 	store     *store.Store
 	client    *kgo.Client
 	log       *slog.Logger
+	tracer    trace.Tracer
 	batchSize int
 	interval  time.Duration
 }
@@ -56,6 +62,7 @@ func New(db *store.Store, brokers []string, log *slog.Logger) (*Relay, error) {
 		store:     db,
 		client:    client,
 		log:       log,
+		tracer:    otel.Tracer("poshra/outbox-relay"),
 		batchSize: 100,
 		interval:  time.Second,
 	}, nil
@@ -90,13 +97,41 @@ func (r *Relay) Run(ctx context.Context) {
 }
 
 // send publishes one claimed batch and waits for the brokers to acknowledge it.
+//
+// Each event resumes the trace stored with it when the order was written, so
+// the publish appears inside that order rather than as an orphan. The span's
+// duration is therefore the outbox's own latency — how long the row sat
+// waiting — which is the number you want when asking whether the relay is
+// keeping up.
 func (r *Relay) send(events []store.PendingEvent) error {
 	records := make([]*kgo.Record, 0, len(events))
+	spans := make([]trace.Span, 0, len(events))
+
 	for _, event := range events {
 		headers := map[string]string{}
 		if len(event.Headers) > 0 {
 			_ = json.Unmarshal(event.Headers, &headers)
 		}
+
+		// Pick the trace back up from the row, then hand the consumers this
+		// publish span rather than the original order's — so the chain reads
+		// order, publish, consume, in that order.
+		ctx := otel.GetTextMapPropagator().Extract(
+			context.Background(), propagation.MapCarrier(headers),
+		)
+		ctx, span := r.tracer.Start(ctx, "publish "+event.Topic,
+			trace.WithSpanKind(trace.SpanKindProducer),
+			trace.WithAttributes(
+				semconv.MessagingSystemKafka,
+				semconv.MessagingDestinationName(event.Topic),
+				semconv.MessagingMessageIDKey.String(event.Key),
+			),
+		)
+		spans = append(spans, span)
+
+		carrier := propagation.MapCarrier(headers)
+		otel.GetTextMapPropagator().Inject(ctx, carrier)
+
 		recordHeaders := make([]kgo.RecordHeader, 0, len(headers))
 		for key, value := range headers {
 			recordHeaders = append(recordHeaders, kgo.RecordHeader{Key: key, Value: []byte(value)})
@@ -111,5 +146,14 @@ func (r *Relay) send(events []store.PendingEvent) error {
 			Headers: recordHeaders,
 		})
 	}
-	return r.client.ProduceSync(context.Background(), records...).FirstErr()
+
+	err := r.client.ProduceSync(context.Background(), records...).FirstErr()
+	for _, span := range spans {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "publish failed")
+		}
+		span.End()
+	}
+	return err
 }
