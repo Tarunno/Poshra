@@ -49,6 +49,11 @@ spec:
           env:
             - name: DATABASE_URL
               valueFrom: { secretKeyRef: { name: poshra-inventory, key: DATABASE_URL } }
+            # The bootstrap Service is only an entry point: the client asks it
+            # which broker leads each partition and then talks to that broker
+            # directly, so this stays correct as the cluster grows.
+            - name: KAFKA_BROKERS
+              value: poshra-kafka-bootstrap:9092
             - name: GRPC_ADDR
               value: ":50051"
             - name: HEALTH_ADDR

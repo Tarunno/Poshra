@@ -27,10 +27,6 @@ spec:
           env:
             - name: DATABASE_URL
               valueFrom: { secretKeyRef: { name: poshra-checkout, key: DATABASE_URL } }
-            - name: INVENTORY_ADDR
-              value: inventory:50051
-            - name: CATALOG_URL
-              value: http://kong-proxy/internal/marketplace
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { memory: 128Mi }

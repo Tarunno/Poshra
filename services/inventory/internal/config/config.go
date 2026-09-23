@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -16,6 +17,12 @@ type Config struct {
 	MaxReservationTTL time.Duration
 	SweepInterval     time.Duration
 	LogLevel          string
+
+	// Where to read order events from. Several addresses are only seeds: the
+	// client learns the rest of the cluster from the first broker to answer.
+	KafkaBrokers  []string
+	OrdersTopic   string
+	ConsumerGroup string
 }
 
 func Load() (Config, error) {
@@ -24,6 +31,14 @@ func Load() (Config, error) {
 		// Fail at startup rather than on the first query.
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
 	}
+	// Refusing to start is the safer failure: an inventory that runs without
+	// its consumer keeps holding stock that was already sold, and nothing
+	// looks wrong until the holds start expiring.
+	brokers := splitList(os.Getenv("KAFKA_BROKERS"))
+	if len(brokers) == 0 {
+		return Config{}, fmt.Errorf("KAFKA_BROKERS is required")
+	}
+
 	return Config{
 		DatabaseURL: dsn,
 		GRPCAddr:    envOr("GRPC_ADDR", ":50051"),
@@ -33,7 +48,23 @@ func Load() (Config, error) {
 		MaxReservationTTL: envDuration("MAX_RESERVATION_TTL", 30*time.Minute),
 		SweepInterval:     envDuration("SWEEP_INTERVAL", time.Minute),
 		LogLevel:          envOr("LOG_LEVEL", "info"),
+		KafkaBrokers:      brokers,
+		OrdersTopic:       envOr("ORDERS_TOPIC", "poshra.orders.created.v1"),
+		// The group name is the identity of this reader. Change it and Kafka
+		// treats it as a brand new consumer that has seen nothing.
+		ConsumerGroup: envOr("CONSUMER_GROUP", "inventory-order-settler"),
 	}, nil
+}
+
+// splitList reads a comma-separated environment value, ignoring spacing.
+func splitList(value string) []string {
+	var out []string
+	for _, part := range strings.Split(value, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func envOr(key, fallback string) string {

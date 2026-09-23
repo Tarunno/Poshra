@@ -23,12 +23,22 @@ import (
 
 	inventoryv1 "github.com/Tarunno/Poshra/services/inventory/gen/poshra/inventory/v1"
 	"github.com/Tarunno/Poshra/services/inventory/internal/config"
+	"github.com/Tarunno/Poshra/services/inventory/internal/consumer"
 	"github.com/Tarunno/Poshra/services/inventory/internal/logging"
 	"github.com/Tarunno/Poshra/services/inventory/internal/server"
 	"github.com/Tarunno/Poshra/services/inventory/internal/store"
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		if err := migrate(); err != nil {
+			println("migration failed:", err.Error())
+			os.Exit(1)
+		}
+		println("migrations applied")
+		return
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		// No logger yet: configuration is what the logger is built from.
@@ -46,21 +56,31 @@ func main() {
 	}
 	defer db.Close()
 
-	if len(os.Args) > 1 && os.Args[1] == "migrate" {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		if err := db.Migrate(ctx); err != nil {
-			log.Error("migration failed", "error", err)
-			os.Exit(1)
-		}
-		log.Info("migrations applied")
-		return
-	}
-
 	if err := run(cfg, log, db); err != nil {
 		log.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+// migrate applies the schema and exits.
+//
+// It deliberately skips config.Load: a migration needs a database and nothing
+// else, so the Job that runs it should not have to carry settings for Kafka or
+// for a gRPC listener it never opens.
+func migrate() error {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		return errors.New("DATABASE_URL is required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	db, err := store.New(ctx, dsn)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	return db.Migrate(ctx)
 }
 
 func run(cfg config.Config, log *slog.Logger, db *store.Store) error {
@@ -113,7 +133,23 @@ func run(cfg config.Config, log *slog.Logger, db *store.Store) error {
 
 	stopSweeper := startSweeper(cfg, log, db)
 
-	log.Info("inventory listening", "grpc", cfg.GRPCAddr, "health", cfg.HealthAddr)
+	// The other way into this service: orders arrive as events rather than as
+	// calls, and settle the holds that checkout placed over gRPC.
+	orders, err := consumer.New(db, cfg.KafkaBrokers, cfg.ConsumerGroup, cfg.OrdersTopic, log)
+	if err != nil {
+		return err
+	}
+	defer orders.Close()
+	consumerCtx, stopConsumer := context.WithCancel(context.Background())
+	defer stopConsumer()
+	consumerDone := make(chan struct{})
+	go func() {
+		defer close(consumerDone)
+		orders.Run(consumerCtx)
+	}()
+
+	log.Info("inventory listening",
+		"grpc", cfg.GRPCAddr, "health", cfg.HealthAddr, "orders_topic", cfg.OrdersTopic)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
@@ -129,6 +165,15 @@ func run(cfg config.Config, log *slog.Logger, db *store.Store) error {
 	}
 
 	stopSweeper()
+	// Stop consuming before the gRPC drain, and wait for the batch in flight to
+	// record its offsets. Cutting it short is safe — the events would simply be
+	// redelivered — but every redelivery is work done twice.
+	stopConsumer()
+	select {
+	case <-consumerDone:
+	case <-time.After(10 * time.Second):
+		log.Warn("the order consumer did not stop in time")
+	}
 	// Finish in-flight calls before closing connections, so a rolling update
 	// does not turn into failed requests.
 	done := make(chan struct{})

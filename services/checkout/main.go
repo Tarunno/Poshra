@@ -28,6 +28,15 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		if err := migrate(); err != nil {
+			println("migration failed:", err.Error())
+			os.Exit(1)
+		}
+		println("migrations applied")
+		return
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		println("configuration error:", err.Error())
@@ -44,21 +53,31 @@ func main() {
 	}
 	defer db.Close()
 
-	if len(os.Args) > 1 && os.Args[1] == "migrate" {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		if err := db.Migrate(ctx); err != nil {
-			log.Error("migration failed", "error", err)
-			os.Exit(1)
-		}
-		log.Info("migrations applied")
-		return
-	}
-
 	if err := run(cfg, log, db); err != nil {
 		log.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+// migrate applies the schema and exits.
+//
+// It deliberately skips config.Load: a migration needs a database and nothing
+// else, so the Job that runs it should not have to carry an inventory address,
+// a catalog URL and a broker list it will never use.
+func migrate() error {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		return errors.New("DATABASE_URL is required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	db, err := store.New(ctx, dsn)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	return db.Migrate(ctx)
 }
 
 func run(cfg config.Config, log *slog.Logger, db *store.Store) error {
