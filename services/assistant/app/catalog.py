@@ -23,6 +23,15 @@ class CatalogClient:
             response.raise_for_status()
             return response.json().get("results", [])
 
+    async def by_slug(self, slug: str) -> dict[str, Any] | None:
+        """One listing, or None. The model works in slugs; the cart needs ids."""
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            response = await client.get(f"{self._base_url}/products/{slug}")
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            return response.json()
+
     async def crafts(self) -> list[dict[str, Any]]:
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             response = await client.get(f"{self._base_url}/crafts")

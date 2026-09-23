@@ -23,6 +23,8 @@ export type ChatTurn = { role: "user" | "assistant"; content: string };
 export type ChatAnswer = {
   reply: string;
   products: Product[];
+  /** Set when the assistant totalled the cart; the shopper pays, not the model. */
+  checkoutReady?: boolean;
   error?: string;
 };
 

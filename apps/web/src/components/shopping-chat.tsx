@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { AlertCircle, ArrowUp, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { ProductCard } from "@/components/product-card";
 import { askAssistant, type ChatTurn } from "@/lib/assistant-actions";
 import type { Product } from "@/lib/catalog";
 
-type Entry = ChatTurn & { products?: Product[] };
+type Entry = ChatTurn & { products?: Product[]; checkoutReady?: boolean };
 
 const OPENERS = [
   "A wedding gift under ৳8,000",
@@ -58,7 +59,12 @@ export function ShoppingChat() {
     }
     setEntries([
       ...history,
-      { role: "assistant", content: answer.reply, products: answer.products },
+      {
+        role: "assistant",
+        content: answer.reply,
+        products: answer.products,
+        checkoutReady: answer.checkoutReady,
+      },
     ]);
   }
 
@@ -102,6 +108,14 @@ export function ShoppingChat() {
               <p className="max-w-2xl text-[0.95rem] leading-relaxed whitespace-pre-wrap">
                 {entry.content}
               </p>
+              {entry.checkoutReady && (
+                // The assistant totals a cart; paying happens on the checkout
+                // page, where the order is reviewed and the idempotency key is
+                // minted. The model has no way to take money.
+                <Button asChild size="lg" className="rounded-full px-7">
+                  <Link href="/checkout">Review and pay</Link>
+                </Button>
+              )}
               {entry.products && entry.products.length > 0 && (
                 <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
                   {entry.products.map((product) => (

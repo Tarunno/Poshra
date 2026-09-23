@@ -45,6 +45,10 @@ spec:
             # could not.
             - name: CATALOG_URL
               value: http://kong-proxy/internal/marketplace
+            # The cart tools act as the shopper, carrying their cookie, so this
+            # is the public route where the gateway verifies it.
+            - name: CHECKOUT_URL
+              value: http://kong-proxy/api/checkout
           ports:
             - name: http
               containerPort: 8000

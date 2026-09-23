@@ -31,6 +31,7 @@ class Config:
     api_key: str
     model: str
     catalog_url: str
+    checkout_url: str
     max_tokens: int
     # A hard ceiling on how many times the model may call a tool for one
     # message. Without it a confused turn can loop against the catalog
@@ -51,6 +52,9 @@ class Config:
             api_key=_require(key_name),
             model=os.environ.get("ASSISTANT_MODEL", "").strip() or default_model,
             catalog_url=_require("CATALOG_URL").rstrip("/"),
+            # Through the gateway, so the shopper's cookie is verified there
+            # exactly as it is for the storefront.
+            checkout_url=_require("CHECKOUT_URL").rstrip("/"),
             max_tokens=int(os.environ.get("ASSISTANT_MAX_TOKENS", "2048")),
             max_tool_calls=int(os.environ.get("ASSISTANT_MAX_TOOL_CALLS", "6")),
             request_timeout=float(os.environ.get("CATALOG_TIMEOUT", "5")),

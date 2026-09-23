@@ -10,6 +10,7 @@ CONFIG = Config(
     api_key="unused",
     model="test-model",
     catalog_url="http://catalog",
+    checkout_url="http://checkout",
     max_tokens=1024,
     max_tool_calls=3,
     request_timeout=1.0,
@@ -34,6 +35,28 @@ def product(slug: str, title: str, price: int = 560000) -> dict:
     }
 
 
+class FakeCheckout:
+    """A cart that remembers, so the tools can be exercised without checkout."""
+
+    def __init__(self, items: list[dict] | None = None) -> None:
+        self.items = items or []
+        self.added: list[tuple[str, int]] = []
+
+    def _cart(self) -> dict:
+        total = sum(line["line_minor"] for line in self.items)
+        return {"items": self.items, "total_minor": total, "currency": "BDT"}
+
+    async def cart(self, cookie: str) -> dict:
+        return self._cart()
+
+    async def add(self, cookie: str, sku_id: str, quantity: int) -> dict:
+        self.added.append((sku_id, quantity))
+        self.items.append(
+            {"title": "One", "quantity": quantity, "line_minor": 560000, "available": True}
+        )
+        return self._cart()
+
+
 class FakeCatalog:
     def __init__(self, results: list[dict] | None = None, fail: bool = False) -> None:
         self.results = results if results is not None else []
@@ -48,6 +71,9 @@ class FakeCatalog:
 
     async def crafts(self):
         return [{"slug": "nakshi-kantha", "name": "Nakshi kantha", "summary": "Quilts"}]
+
+    async def by_slug(self, slug):
+        return next((p for p in self.results if p["slug"] == slug), None)
 
 
 class FakeConversation:
@@ -120,7 +146,7 @@ async def test_a_tool_call_is_run_and_its_result_handed_back():
         ]
     )
 
-    answer = await Assistant(CONFIG, catalog, provider).reply(
+    answer = await Assistant(CONFIG, catalog, FakeCheckout(), provider).reply(
         [{"role": "user", "content": "show me kantha"}]
     )
 
@@ -141,14 +167,14 @@ async def test_a_failing_catalog_is_reported_to_the_model_not_hidden():
         ]
     )
 
-    answer = await Assistant(CONFIG, FakeCatalog(fail=True), provider).reply(
+    answer = await Assistant(CONFIG, FakeCatalog(fail=True), FakeCheckout(), provider).reply(
         [{"role": "user", "content": "anything"}]
     )
 
     # The model must be told the tool failed, so it can say so instead of
     # inventing stock.
     result = provider.conversation.results_seen[0][0].content
-    assert "could not be reached" in result["error"]
+    assert "could not be done" in result["error"]
     assert answer["products"] == []
 
 
@@ -159,7 +185,9 @@ async def test_the_tool_budget_stops_a_runaway_conversation():
         [Turn(tool_calls=(call("search_products", {"query": f"try {i}"}),)) for i in range(10)]
     )
 
-    answer = await Assistant(CONFIG, catalog, provider).reply([{"role": "user", "content": "hmm"}])
+    answer = await Assistant(CONFIG, catalog, FakeCheckout(), provider).reply(
+        [{"role": "user", "content": "hmm"}]
+    )
 
     # Every iteration costs money, so the loop is capped rather than trusted.
     assert answer["reply"] == GAVE_UP
@@ -173,7 +201,7 @@ async def test_only_the_pieces_the_tools_returned_come_back():
         [Turn(tool_calls=(call("search_products"),)), Turn(text="Some pieces.")]
     )
 
-    answer = await Assistant(CONFIG, FakeCatalog(many), provider).reply(
+    answer = await Assistant(CONFIG, FakeCatalog(many), FakeCheckout(), provider).reply(
         [{"role": "user", "content": "everything"}]
     )
 
@@ -183,7 +211,9 @@ async def test_only_the_pieces_the_tools_returned_come_back():
 async def test_an_unknown_tool_is_reported_rather_than_crashing():
     provider = FakeProvider([Turn(tool_calls=(call("make_me_a_sandwich"),)), Turn(text="No.")])
 
-    await Assistant(CONFIG, FakeCatalog(), provider).reply([{"role": "user", "content": "hi"}])
+    await Assistant(CONFIG, FakeCatalog(), FakeCheckout(), provider).reply(
+        [{"role": "user", "content": "hi"}]
+    )
 
     assert "no tool called" in provider.conversation.results_seen[0][0].content["error"]
 
@@ -192,9 +222,9 @@ async def test_an_unknown_tool_is_reported_rather_than_crashing():
 async def test_both_tools_are_reachable(tool):
     provider = FakeProvider([Turn(tool_calls=(call(tool),)), Turn(text="Done.")])
 
-    answer = await Assistant(CONFIG, FakeCatalog([product("a", "One")]), provider).reply(
-        [{"role": "user", "content": "hi"}]
-    )
+    answer = await Assistant(
+        CONFIG, FakeCatalog([product("a", "One")]), FakeCheckout(), provider
+    ).reply([{"role": "user", "content": "hi"}])
     assert answer["tool_calls"] == 1
     assert answer["reply"] == "Done."
 
@@ -202,7 +232,9 @@ async def test_both_tools_are_reachable(tool):
 async def test_the_provider_is_given_the_prompt_and_both_tools():
     provider = FakeProvider([Turn(text="hi")])
 
-    await Assistant(CONFIG, FakeCatalog(), provider).reply([{"role": "user", "content": "hello"}])
+    await Assistant(CONFIG, FakeCatalog(), FakeCheckout(), provider).reply(
+        [{"role": "user", "content": "hello"}]
+    )
 
     # The prompt and the tools are written once and handed to whichever model
     # is configured — that is the whole point of the seam.
@@ -210,4 +242,108 @@ async def test_the_provider_is_given_the_prompt_and_both_tools():
     assert [tool.name for tool in provider.started_with["tools"]] == [
         "search_products",
         "list_crafts",
+        "add_to_cart",
+        "view_cart",
+        "prepare_checkout",
     ]
+
+
+# --- the cart -----------------------------------------------------------------
+
+
+async def test_adding_resolves_the_slug_the_model_saw_to_a_real_piece():
+    catalog = FakeCatalog([product("kantha", "Nakshi kantha throw")])
+    checkout = FakeCheckout()
+    provider = FakeProvider(
+        [
+            Turn(tool_calls=(call("add_to_cart", {"slug": "kantha", "quantity": 2}),)),
+            Turn(text="Added."),
+        ]
+    )
+
+    await Assistant(CONFIG, catalog, checkout, provider).reply(
+        [{"role": "user", "content": "add the kantha"}], cookie="poshra_at=x"
+    )
+
+    # The model works in slugs because that is what search returns; the cart
+    # wants an id, and that translation is the service's job.
+    assert checkout.added == [("id-kantha", 2)]
+
+
+async def test_a_slug_the_model_invented_is_refused():
+    checkout = FakeCheckout()
+    provider = FakeProvider(
+        [
+            Turn(tool_calls=(call("add_to_cart", {"slug": "a-thing-that-never-existed"}),)),
+            Turn(text="I could not find that."),
+        ]
+    )
+
+    await Assistant(CONFIG, FakeCatalog(), checkout, provider).reply(
+        [{"role": "user", "content": "add it"}], cookie="poshra_at=x"
+    )
+
+    assert checkout.added == []
+    assert "no piece" in provider.conversation.results_seen[0][0].content["error"]
+
+
+async def test_a_sold_out_piece_is_not_added():
+    sold_out = product("gone", "Last one")
+    sold_out["in_stock"] = False
+    checkout = FakeCheckout()
+    provider = FakeProvider(
+        [
+            Turn(tool_calls=(call("add_to_cart", {"slug": "gone"}),)),
+            Turn(text="That one has sold."),
+        ]
+    )
+
+    await Assistant(CONFIG, FakeCatalog([sold_out]), checkout, provider).reply(
+        [{"role": "user", "content": "add it"}], cookie="poshra_at=x"
+    )
+
+    assert checkout.added == []
+    assert "sold out" in provider.conversation.results_seen[0][0].content["error"]
+
+
+async def test_a_cart_tool_without_a_session_does_nothing():
+    checkout = FakeCheckout()
+    provider = FakeProvider([Turn(tool_calls=(call("view_cart"),)), Turn(text="Sign in first.")])
+
+    await Assistant(CONFIG, FakeCatalog(), checkout, provider).reply(
+        [{"role": "user", "content": "what is in my cart"}], cookie=""
+    )
+
+    # Browsing is public; a cart belongs to somebody. Without their session
+    # there is nothing to read and nothing to act on.
+    assert "not signed in" in provider.conversation.results_seen[0][0].content["error"]
+
+
+async def test_preparing_checkout_totals_the_cart_without_buying_anything():
+    checkout = FakeCheckout(
+        [{"title": "One", "quantity": 1, "line_minor": 560000, "available": True}]
+    )
+    provider = FakeProvider(
+        [Turn(tool_calls=(call("prepare_checkout"),)), Turn(text="That comes to ৳5,600.")]
+    )
+
+    answer = await Assistant(CONFIG, FakeCatalog(), checkout, provider).reply(
+        [{"role": "user", "content": "I'll take it"}], cookie="poshra_at=x"
+    )
+
+    # The model can total a cart and hand over; it has no way to take money,
+    # which is a stronger promise than telling it not to.
+    assert answer["checkout_ready"] is True
+    assert provider.conversation.results_seen[0][0].content["cart"]["total_minor"] == 560000
+
+
+async def test_an_empty_cart_offers_nothing_to_pay_for():
+    provider = FakeProvider(
+        [Turn(tool_calls=(call("prepare_checkout"),)), Turn(text="Your cart is empty.")]
+    )
+
+    answer = await Assistant(CONFIG, FakeCatalog(), FakeCheckout(), provider).reply(
+        [{"role": "user", "content": "checkout"}], cookie="poshra_at=x"
+    )
+
+    assert answer["checkout_ready"] is False

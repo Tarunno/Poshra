@@ -11,6 +11,7 @@ CONFIG = Config(
     api_key="unused",
     model="test-model",
     catalog_url="http://catalog",
+    checkout_url="http://checkout",
     max_tokens=512,
     max_tool_calls=2,
     request_timeout=1.0,
@@ -23,9 +24,14 @@ class StubAssistant(Assistant):
         super().__init__(CONFIG, CatalogClient(CONFIG.catalog_url, 1.0), provider=object())
         self.seen: list[list[dict]] = []
 
-    async def reply(self, messages):
+    async def reply(self, messages, cookie: str = ""):
         self.seen.append(messages)
-        return {"reply": "Two pieces.", "products": [], "tool_calls": 1}
+        return {
+            "reply": "Two pieces.",
+            "products": [],
+            "tool_calls": 1,
+            "checkout_ready": False,
+        }
 
 
 @pytest.fixture
@@ -35,6 +41,7 @@ def client(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "gemini")
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.setenv("CATALOG_URL", CONFIG.catalog_url)
+    monkeypatch.setenv("CHECKOUT_URL", CONFIG.checkout_url)
 
     stub = StubAssistant()
     with TestClient(app, raise_server_exceptions=False) as test_client:
@@ -101,7 +108,7 @@ def test_being_out_of_quota_says_wait_rather_than_broken(client, monkeypatch):
 
     test_client, stub = client
 
-    async def rate_limited(messages):
+    async def rate_limited(messages, cookie: str = ""):
         raise RateLimited("the model answered 429 4 times")
 
     monkeypatch.setattr(stub, "reply", rate_limited)

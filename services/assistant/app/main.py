@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from app.assistant import Assistant
 from app.catalog import CatalogClient
+from app.checkout import CheckoutClient
 from app.config import Config, ConfigError
 from app.llm.gemini import RateLimited
 from app.logging import configure_logging
@@ -50,7 +51,9 @@ async def lifespan(app: FastAPI):
 
     app.state.config = config
     app.state.assistant = Assistant(
-        config, CatalogClient(config.catalog_url, config.request_timeout)
+        config,
+        CatalogClient(config.catalog_url, config.request_timeout),
+        CheckoutClient(config.checkout_url, config.request_timeout),
     )
     log.info(
         "assistant ready",
@@ -79,6 +82,7 @@ async def chat(
     request: Request,
     body: ChatRequest,
     x_user_id: str | None = Header(default=None),
+    cookie: str | None = Header(default=None),
 ) -> JSONResponse:
     if not x_user_id:
         raise HTTPException(status_code=401, detail="Sign in to ask the assistant.")
@@ -92,7 +96,9 @@ async def chat(
     ]
 
     try:
-        answer = await assistant.reply(conversation)
+        # The shopper's own session travels with the cart tools, so the
+        # assistant acts as them and holds no privilege of its own.
+        answer = await assistant.reply(conversation, cookie=cookie or "")
     except RateLimited as error:
         # Being out of quota is not a broken service, and telling someone to
         # wait is a different instruction from telling them it is down.
@@ -115,6 +121,7 @@ async def chat(
             "turns": len(conversation),
             "tool_calls": answer["tool_calls"],
             "products": len(answer["products"]),
+            "checkout_ready": answer["checkout_ready"],
         },
     )
     return JSONResponse(answer)
