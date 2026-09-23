@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+// Stock and reservations for Poshra.
+//
+// Inventory is the single authority for how many of a piece exist. Everything
+// else — the catalog's displayed count, an order's line items — is a copy.
+// That is what makes overselling preventable: one service decides, and it
+// decides with a transaction.
+package poshra.inventory.v1;
+
+option go_package = "github.com/Tarunno/Poshra/services/inventory/gen/poshra/inventory/v1;inventoryv1";
+
+import "google/protobuf/timestamp.proto";
+
+// InventoryService is called by checkout during an order, and by the catalog
+// when an artisan changes how many they have.
+service InventoryService {
+  // Hold stock for an order. All items succeed or none do: a partial hold
+  // would strand stock for an order that can never complete.
+  //
+  // Idempotent by reservation_id. Retrying a call whose reply was lost returns
+  // the original outcome instead of holding twice.
+  rpc ReserveStock(ReserveStockRequest) returns (ReserveStockResponse);
+
+  // Turn a hold into a sale, once payment has succeeded.
+  rpc CommitReservation(CommitReservationRequest) returns (CommitReservationResponse);
+
+  // Give a hold back, when payment fails or the buyer abandons checkout. The
+  // reservation's expiry is the safety net if this call never arrives.
+  rpc ReleaseReservation(ReleaseReservationRequest) returns (ReleaseReservationResponse);
+
+  // Read availability, for the storefront and for an artisan's dashboard.
+  rpc GetStock(GetStockRequest) returns (GetStockResponse);
+
+  // Set the quantity an artisan has. Called by the catalog when a listing is
+  // published or edited.
+  rpc SetStock(SetStockRequest) returns (SetStockResponse);
+}
+
+// A quantity of one listing.
+message StockItem {
+  // The catalog's product id. Called a SKU here because inventory does not
+  // care what the piece is, only that it is countable.
+  string sku_id = 1;
+  int32 quantity = 2;
+}
+
+message ReserveStockRequest {
+  // Supplied by the caller so a retry is not a second hold. Same id, same
+  // outcome, however many times it arrives.
+  string reservation_id = 1;
+  string order_id = 2;
+  repeated StockItem items = 3;
+  // How long the hold survives without being committed. The server clamps
+  // this: a client must not be able to hold stock indefinitely.
+  int32 ttl_seconds = 4;
+}
+
+enum ReservationState {
+  RESERVATION_STATE_UNSPECIFIED = 0;
+  RESERVATION_STATE_HELD = 1;
+  RESERVATION_STATE_COMMITTED = 2;
+  RESERVATION_STATE_RELEASED = 3;
+  RESERVATION_STATE_EXPIRED = 4;
+}
+
+message ReserveStockResponse {
+  string reservation_id = 1;
+  ReservationState state = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  // True when this call created the hold, false when it returned an existing
+  // one. Useful in logs to see how often clients retry.
+  bool created = 4;
+}
+
+message CommitReservationRequest {
+  string reservation_id = 1;
+}
+
+message CommitReservationResponse {
+  ReservationState state = 1;
+}
+
+message ReleaseReservationRequest {
+  string reservation_id = 1;
+  // Free text for logs: "payment_declined", "cart_abandoned".
+  string reason = 2;
+}
+
+message ReleaseReservationResponse {
+  ReservationState state = 1;
+}
+
+message GetStockRequest {
+  repeated string sku_ids = 1;
+}
+
+message StockLevel {
+  string sku_id = 1;
+  // On hand and not held by anyone.
+  int32 available = 2;
+  // Held by live reservations, not yet sold.
+  int32 reserved = 3;
+}
+
+message GetStockResponse {
+  repeated StockLevel levels = 1;
+}
+
+message SetStockRequest {
+  string sku_id = 1;
+  // The absolute quantity on hand, not a delta: the caller knows the truth,
+  // and an absolute value makes a repeated call harmless.
+  int32 quantity = 2;
+}
+
+message SetStockResponse {
+  StockLevel level = 1;
+}

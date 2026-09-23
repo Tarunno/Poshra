@@ -52,6 +52,8 @@ k8s-secrets: ## Create namespace + secrets in the cluster (generates random pass
 		--from-literal=ASSISTANT_DB_PASSWORD=$$(openssl rand -hex 24)
 	kubectl -n poshra get secret poshra-django >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-django \
 		--from-literal=DJANGO_SECRET_KEY=$$(openssl rand -base64 48 | tr -d '\n')
+	@kubectl -n poshra get secret poshra-inventory >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-inventory \
+		--from-literal=DATABASE_URL="postgres://inventory:$$(kubectl -n poshra get secret poshra-db -o jsonpath='{.data.INVENTORY_DB_PASSWORD}' | base64 -d)@postgres:5432/inventory?sslmode=disable"
 	@kubectl -n poshra get secret poshra-jwt >/dev/null 2>&1 || ( \
 		tmp=$$(mktemp -d); \
 		openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out $$tmp/key.pem 2>/dev/null; \
@@ -60,12 +62,19 @@ k8s-secrets: ## Create namespace + secrets in the cluster (generates random pass
 			--from-literal=JWT_PRIVATE_KEY_B64=$$(base64 -w0 < $$tmp/key.pem) \
 			--from-literal=JWT_PUBLIC_KEY_B64=$$(base64 -w0 < $$tmp/pub.pem); \
 		rm -rf $$tmp )
+	@kubectl -n poshra get secret poshra-inventory >/dev/null 2>&1 || kubectl -n poshra create secret generic poshra-inventory \
+		--from-literal=DATABASE_URL="postgres://inventory:$$(kubectl -n poshra get secret poshra-db -o jsonpath='{.data.INVENTORY_DB_PASSWORD}' | base64 -d)@postgres:5432/inventory?sslmode=disable"
 	@kubectl -n poshra get secret
 
 k8s-deploy: ## Apply manifests to the cluster (TAG=<image tag>, default dev)
 	cd deploy/k8s/overlays/local && kubectl kustomize . | kubectl apply -f -
 	kubectl -n poshra rollout status deploy/marketplace --timeout=180s
 	kubectl -n poshra rollout status deploy/kong --timeout=120s
+
+k8s-migrate-inventory: ## Run inventory migrations in the cluster as a one-off Job
+	@IMAGE=$$(kubectl -n poshra get deploy inventory -o jsonpath='{.spec.template.spec.containers[0].image}'); \
+	sed "s|IMAGE_PLACEHOLDER|$$IMAGE|" deploy/k8s/jobs/inventory-migrate.yaml | kubectl create -f - -o name | \
+	xargs -I{} kubectl -n poshra wait --for=condition=complete --timeout=180s {}
 
 k8s-migrate: ## Run Django migrations in the cluster as a one-off Job
 	@IMAGE=$$(kubectl -n poshra get deploy marketplace -o jsonpath='{.spec.template.spec.containers[0].image}'); \

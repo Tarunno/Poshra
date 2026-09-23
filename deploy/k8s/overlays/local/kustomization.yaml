@@ -12,5 +12,7 @@ images:
     newTag: a75006638ba62651a26af4ca063a4e4a4bcbd913
   - name: ghcr.io/tarunno/poshra/web
     newTag: a75006638ba62651a26af4ca063a4e4a4bcbd913
+  - name: ghcr.io/tarunno/poshra/inventory
+    newTag: dev
   - name: ghcr.io/tarunno/poshra/kong
     newTag: a75006638ba62651a26af4ca063a4e4a4bcbd913

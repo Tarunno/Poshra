@@ -21,6 +21,7 @@ jobs:
       marketplace: ${{ steps.filter.outputs.marketplace }}
       gateway: ${{ steps.filter.outputs.gateway }}
       web: ${{ steps.filter.outputs.web }}
+      inventory: ${{ steps.filter.outputs.inventory }}
       deploy: ${{ steps.filter.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +35,9 @@ jobs:
               - 'apps/web/**'
             gateway:
               - 'gateway/kong/**'
+            inventory:
+              - 'services/inventory/**'
+              - 'proto/**'
             deploy:
               - 'deploy/k8s/**'
 
@@ -67,9 +71,46 @@ jobs:
           docker run --rm -v "${{ github.workspace }}/gateway/kong:/kong:ro" \
             --entrypoint resty kong:3.9.3 /kong/tests/gcra_test.lua
 
+  test-inventory:
+    name: test inventory
+    needs: changes
+    if: needs.changes.outputs.inventory == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # buf breaking compares against the previous commit, which needs history.
+          fetch-depth: 0
+
+      - uses: bufbuild/buf-action@v1
+        with:
+          input: proto
+          # Fails the build on a change that would break a deployed client:
+          # a renumbered field, a changed type, a removed RPC.
+          breaking_against: "https://github.com/${{ github.repository }}.git#branch=main,subdir=proto"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: services/inventory/go.sum
+
+      - name: Check the generated code is up to date
+        run: |
+          # A contract change that is not regenerated would compile against
+          # stale types, so CI regenerates and fails on any difference.
+          docker run --rm -v "$PWD/proto:/workspace" -v "$PWD/services:/services" \
+            -w /workspace bufbuild/buf:latest generate
+          git diff --exit-code services/inventory/gen
+
+      - name: Test
+        working-directory: services/inventory
+        run: |
+          go vet ./...
+          go test ./...
+
   build:
     name: build ${{ matrix.service }}
-    needs: [changes, test-marketplace, test-gateway]
+    needs: [changes, test-marketplace, test-gateway, test-inventory]
     # Run when the needed tests pass or were skipped, but not if one failed.
     if: always() && !contains(needs.*.result, 'failure') && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -85,6 +126,8 @@ jobs:
             context: gateway/kong
           - service: web
             context: apps/web
+          - service: inventory
+            context: services/inventory
     steps:
       - uses: actions/checkout@v4
 

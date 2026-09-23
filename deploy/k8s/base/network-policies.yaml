@@ -98,6 +98,12 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: marketplace-migrate
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: inventory
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: inventory-migrate
       ports:
         - { protocol: TCP, port: 5432 }
     - from:
@@ -105,3 +111,28 @@ spec:
             cidr: 192.168.110.0/24
       ports:
         - { protocol: TCP, port: 5432 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: inventory-accepts-its-callers-only
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: inventory
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        # Checkout is the only service that reserves stock. The gateway has no
+        # route to inventory: it is internal, not a public API.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: checkout
+      ports:
+        - { protocol: TCP, port: 50051 }
+    - from:
+        - ipBlock:
+            cidr: 192.168.110.0/24
+      ports:
+        - { protocol: TCP, port: 50051 }
+        - { protocol: TCP, port: 8081 }

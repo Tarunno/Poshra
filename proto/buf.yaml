@@ -1,0 +1,14 @@
+version: v2
+modules:
+  - path: .
+lint:
+  use:
+    - STANDARD
+  # Enforces the layout that keeps contracts evolvable: one version directory
+  # per package, package name matching the directory.
+  disallow_comment_ignores: true
+breaking:
+  use:
+    - FILE
+  # Catches the changes that break deployed clients: reusing or renumbering a
+  # field, changing a type, removing an RPC.

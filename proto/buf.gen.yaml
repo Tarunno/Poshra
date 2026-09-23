@@ -1,0 +1,14 @@
+version: v2
+managed:
+  enabled: false
+plugins:
+  # Message types and (de)serialisation.
+  - remote: buf.build/protocolbuffers/go:v1.36.5
+    out: ../services/inventory/gen
+    opt: paths=source_relative
+  # Client and server interfaces for the service definition.
+  - remote: buf.build/grpc/go:v1.5.1
+    out: ../services/inventory/gen
+    opt:
+      - paths=source_relative
+      - require_unimplemented_servers=true
