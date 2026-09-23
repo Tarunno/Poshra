@@ -17,7 +17,7 @@ export function ProductGallery({ product }: { product: Product }) {
 
   if (images.length === 0) {
     return (
-      <div className="rounded-panel relative aspect-[4/5] overflow-hidden">
+      <div className="rounded-panel relative aspect-[4/3] overflow-hidden">
         <CraftTile
           craftSlug={product.craft.slug}
           seedKey={product.slug}
@@ -44,7 +44,7 @@ export function ProductGallery({ product }: { product: Product }) {
           <div
             key={image.url}
             id={`photo-${index}`}
-            className="relative aspect-[4/5] w-full shrink-0 snap-center"
+            className="bg-tint-saffron/40 relative aspect-[4/3] w-full shrink-0 snap-center"
           >
             <Image
               src={image.url}
@@ -55,7 +55,10 @@ export function ProductGallery({ product }: { product: Product }) {
               // Only the first is above the fold; the rest load as they scroll.
               priority={index === 0}
               sizes="(min-width: 1024px) 45vw, 100vw"
-              className="object-cover"
+              // Contain, not cover: artisans photograph whatever shape the
+              // piece is, and a mat or a laid-out saree is wider than the
+              // frame. Cropping it hides the thing being sold.
+              className="object-contain"
             />
           </div>
         ))}

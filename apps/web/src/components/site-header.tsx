@@ -1,9 +1,16 @@
 import Link from "next/link";
-import { ShoppingBag, Sparkles } from "lucide-react";
+import {
+  LayoutDashboard,
+  LogIn,
+  ShoppingBag,
+  Sparkles,
+  Store,
+  UserPlus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PoshraLogo } from "@/components/logo";
-import { KanthaRule } from "@/components/motifs";
+import { KanthaRule, MakersHand } from "@/components/motifs";
 import { UserMenu } from "@/components/user-menu";
 import type { User } from "@/lib/api";
 
@@ -23,7 +30,10 @@ export function SiteHeader({
 
         <nav className="flex items-center gap-2">
           <Button asChild variant="ghost" size="sm" className="rounded-full">
-            <Link href="/shop">Shop</Link>
+            <Link href="/shop">
+              <Store className="size-4" aria-hidden />
+              Shop
+            </Link>
           </Button>
           {user && (
             <Button asChild variant="ghost" size="sm" className="rounded-full">
@@ -54,8 +64,9 @@ export function SiteHeader({
               {user.role === "artisan" && (
                 <Badge
                   variant="secondary"
-                  className="hidden rounded-full sm:inline-flex"
+                  className="hidden items-center gap-1 rounded-full sm:inline-flex"
                 >
+                  <MakersHand className="size-3.5" />
                   Artisan
                 </Badge>
               )}
@@ -65,7 +76,10 @@ export function SiteHeader({
                 size="sm"
                 className="rounded-full"
               >
-                <Link href="/dashboard">Dashboard</Link>
+                <Link href="/dashboard">
+                  <LayoutDashboard className="size-4" aria-hidden />
+                  Dashboard
+                </Link>
               </Button>
               <UserMenu user={user} />
             </>
@@ -80,10 +94,16 @@ export function SiteHeader({
                 size="sm"
                 className="rounded-full"
               >
-                <Link href="/login">Sign in</Link>
+                <Link href="/login">
+                  <LogIn className="size-4" aria-hidden />
+                  Sign in
+                </Link>
               </Button>
               <Button asChild size="sm" className="rounded-full px-5">
-                <Link href="/register">Create a free account</Link>
+                <Link href="/register">
+                  <UserPlus className="size-4" aria-hidden />
+                  Create a free account
+                </Link>
               </Button>
             </>
           )}
