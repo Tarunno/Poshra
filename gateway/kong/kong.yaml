@@ -11,22 +11,6 @@ services:
     # Never replay requests: POSTs (login, orders) are not safe to send twice.
     retries: 0
     routes:
-      # Credentials. Deliberately exempt from identity checks: you cannot
-      # present a valid access token before you have one, and refresh runs
-      # precisely when the access token has expired. Limited hard instead,
-      # because this is where credential stuffing lands.
-      - name: marketplace-auth
-        paths:
-          - /api/marketplace/auth
-        strip_path: true
-        protocols: [http, https]
-        plugins:
-          - name: poshra-leaky-bucket
-            config:
-              rate: 1
-              burst: 8
-              limit_by: ip
-
       # Public edge: browsers and external agents. Authentication is optional
       # so anonymous visitors can browse; when a token is present it is
       # verified here and the services receive a trusted identity.
@@ -80,6 +64,34 @@ services:
               # Becomes "__Host-poshra_at" once TLS is in front: that prefix
               # requires the Secure attribute, which plain HTTP cannot set.
               access_cookie: poshra_at
+
+  # Credentials live on their own service so that stripping the matched path
+  # still lands on /auth/... upstream: Kong appends what remains after the
+  # match to the service URL.
+  # Credentials live on their own service so that stripping the matched path
+  # still lands on /auth/... upstream: Kong appends whatever follows the match
+  # to the service URL.
+  - name: marketplace-auth
+    url: http://marketplace:8000/auth
+    connect_timeout: 2000
+    read_timeout: 5000
+    write_timeout: 5000
+    retries: 0
+    routes:
+      # Exempt from identity checks: a valid access token cannot exist before
+      # login, and refresh runs precisely when it has expired. Rate limited
+      # hard instead, because this is where credential stuffing lands.
+      - name: marketplace-auth
+        paths:
+          - /api/marketplace/auth
+        strip_path: true
+        protocols: [http, https]
+        plugins:
+          - name: poshra-leaky-bucket
+            config:
+              rate: 1
+              burst: 8
+              limit_by: ip
 
   # The Next.js frontend. `web` resolves to the Compose service locally and to
   # the Kubernetes Service in the cluster, so one config works in both places.
