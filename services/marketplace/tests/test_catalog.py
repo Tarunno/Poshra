@@ -344,3 +344,32 @@ def test_unknown_sort_values_are_ignored(client, product):
     # A caller must not be able to order by an arbitrary column.
     response = client.get(f"{PRODUCTS}?sort=price_minor;DROP")
     assert response.status_code == 200
+
+
+def test_products_can_be_fetched_by_id(client, artisan, craft, product):
+    other = Product.objects.create(
+        artisan=artisan,
+        craft=craft,
+        title="Another piece",
+        price_minor=1000,
+        stock=1,
+        status=ProductStatus.PUBLISHED,
+    )
+    body = client.get(f"{PRODUCTS}?ids={product.id},{other.id}").json()
+    assert body["count"] == 2
+
+    single = client.get(f"{PRODUCTS}?ids={product.id}").json()
+    assert single["count"] == 1
+    assert single["results"][0]["id"] == str(product.id)
+
+
+def test_unknown_ids_are_ignored_not_errors(client, product):
+    body = client.get(f"{PRODUCTS}?ids={product.id},11111111-1111-1111-1111-111111111111").json()
+    assert body["count"] == 1
+
+
+def test_id_filter_still_hides_drafts(client, artisan, craft):
+    draft = Product.objects.create(
+        artisan=artisan, craft=craft, title="Draft piece", price_minor=1000, stock=1
+    )
+    assert client.get(f"{PRODUCTS}?ids={draft.id}").json()["count"] == 0

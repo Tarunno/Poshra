@@ -15,6 +15,7 @@ resources:
   - postgres.yaml
   - marketplace.yaml
   - inventory.yaml
+  - checkout.yaml
   - web.yaml
   - network-policies.yaml
   - kong.yaml
@@ -51,4 +52,6 @@ images:
   - name: ghcr.io/tarunno/poshra/web
     newTag: dev
   - name: ghcr.io/tarunno/poshra/inventory
+    newTag: dev
+  - name: ghcr.io/tarunno/poshra/checkout
     newTag: dev

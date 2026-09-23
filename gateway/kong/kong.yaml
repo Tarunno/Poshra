@@ -98,6 +98,38 @@ services:
               burst: 8
               limit_by: ip
 
+  # Cart and orders. Every endpoint here needs a buyer, so the identity plugin
+  # is set to require authentication rather than allow anonymous browsing.
+  - name: checkout
+    url: http://checkout:8080
+    connect_timeout: 2000
+    # Longer than the others: placing an order reserves stock and charges a
+    # payment before replying.
+    read_timeout: 30000
+    write_timeout: 30000
+    # An order must never be replayed by the gateway.
+    retries: 0
+    routes:
+      - name: checkout-api
+        paths:
+          - /api/checkout
+        strip_path: true
+        protocols: [http, https]
+        plugins:
+          - name: poshra-identity
+            config:
+              public_key_b64: "{vault://env/poshra-jwt-public-key}"
+              issuer: poshra-marketplace
+              audience: poshra-api
+              access_cookie: poshra_at
+              require_authentication: true
+          - name: poshra-leaky-bucket
+            config:
+              rate: 5
+              burst: 10
+              limit_by: header
+              header_name: X-User-Id
+
   # The Next.js frontend. `web` resolves to the Compose service locally and to
   # the Kubernetes Service in the cluster, so one config works in both places.
   # Serving the app and the API from one origin is what makes the auth cookies

@@ -76,6 +76,12 @@ def filter_products(
         raw = params.get(name)
         return raw or None
 
+    # Used by checkout to price a cart: several ids in one round trip rather
+    # than one request per line item.
+    if ids := value("ids"):
+        wanted = [part for part in ids.split(",") if part.strip()][:100]
+        queryset = queryset.filter(id__in=wanted)
+
     if craft := value("craft"):
         queryset = queryset.filter(craft__slug=craft)
     if artisan := value("artisan"):

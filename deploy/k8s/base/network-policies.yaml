@@ -104,6 +104,12 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: inventory-migrate
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: checkout
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: checkout-migrate
       ports:
         - { protocol: TCP, port: 5432 }
     - from:
@@ -136,3 +142,25 @@ spec:
       ports:
         - { protocol: TCP, port: 50051 }
         - { protocol: TCP, port: 8081 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: checkout-accepts-gateway-only
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: checkout
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kong
+      ports:
+        - { protocol: TCP, port: 8080 }
+    - from:
+        - ipBlock:
+            cidr: 192.168.110.0/24
+      ports:
+        - { protocol: TCP, port: 8080 }

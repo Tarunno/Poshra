@@ -22,6 +22,7 @@ jobs:
       gateway: ${{ steps.filter.outputs.gateway }}
       web: ${{ steps.filter.outputs.web }}
       inventory: ${{ steps.filter.outputs.inventory }}
+      checkout: ${{ steps.filter.outputs.checkout }}
       deploy: ${{ steps.filter.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
@@ -38,6 +39,9 @@ jobs:
             inventory:
               - 'services/inventory/**'
               - 'proto/**'
+            checkout:
+              - 'services/checkout/**'
+              - 'services/inventory/gen/**'
             deploy:
               - 'deploy/k8s/**'
 
@@ -108,9 +112,27 @@ jobs:
           go vet ./...
           go test ./...
 
+  test-checkout:
+    name: test checkout
+    needs: changes
+    if: needs.changes.outputs.checkout == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: services/checkout/go.sum
+      - name: Test
+        working-directory: services/checkout
+        run: |
+          go vet ./...
+          # Testcontainers starts a real Postgres; the runner has Docker.
+          go test ./...
+
   build:
     name: build ${{ matrix.service }}
-    needs: [changes, test-marketplace, test-gateway, test-inventory]
+    needs: [changes, test-marketplace, test-gateway, test-inventory, test-checkout]
     # Run when the needed tests pass or were skipped, but not if one failed.
     if: always() && !contains(needs.*.result, 'failure') && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -128,6 +150,9 @@ jobs:
             context: apps/web
           - service: inventory
             context: services/inventory
+          - service: checkout
+            context: services
+            dockerfile: services/checkout/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -145,6 +170,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile || format('{0}/Dockerfile', matrix.context) }}
           push: true
           # Immutable tag (commit SHA) is what gets deployed; `main` is a
           # convenience pointer. Never deploy a moving tag.
