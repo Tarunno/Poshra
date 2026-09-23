@@ -15,6 +15,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -72,6 +73,15 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse database url: %w", err)
 	}
+	// Every query becomes a span inside the request that made it, which is how
+	// "the order was slow" becomes "the reservation update waited on a lock".
+	cfg.ConnConfig.Tracer = otelpgx.NewTracer(
+		otelpgx.WithTrimSQLInSpanName(),
+		// The SQL text is recorded; the arguments are not. A span is not a
+		// place to put someone's address.
+		otelpgx.WithDisableQuerySpanNamePrefix(),
+	)
+
 	cfg.MaxConns = 8
 	cfg.MinConns = 1
 	cfg.MaxConnIdleTime = 5 * time.Minute

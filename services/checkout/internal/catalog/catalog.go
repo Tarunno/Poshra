@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type Product struct {
@@ -34,7 +36,12 @@ func New(baseURL string, timeout time.Duration) *Client {
 		baseURL: strings.TrimRight(baseURL, "/"),
 		// Every outbound call gets a timeout: without one a slow dependency
 		// holds this service's goroutines until it runs out of them.
-		http: &http.Client{Timeout: timeout},
+		http: &http.Client{
+			Timeout: timeout,
+			// Records the call as a span and sends the trace headers with it,
+			// so marketplace's work appears inside the order that caused it.
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+		},
 	}
 }
 

@@ -55,6 +55,13 @@ spec:
             # directly, so this stays correct as the cluster grows.
             - name: KAFKA_BROKERS
               value: poshra-kafka-bootstrap:9092
+            # Tracing. Unset, the service runs with tracing off rather than
+            # refusing to start: observability must not be a dependency of
+            # serving traffic.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observability.svc.cluster.local:4317
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
             - name: HTTP_ADDR
               value: ":8080"
           ports:

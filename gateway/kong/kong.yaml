@@ -2,6 +2,19 @@
 # Validate: make kong-validate   Apply without restart: make kong-reload
 _format_version: "3.0"
 
+# Applied to every route. The trace has to start at the gateway, or the first
+# thing anyone sees is a service reporting how long it took after the request
+# had already spent time being routed and authenticated.
+plugins:
+  - name: opentelemetry
+    config:
+      traces_endpoint: http://otel-collector.observability.svc.cluster.local:4318/v1/traces
+      resource_attributes:
+        service.name: kong
+      # W3C traceparent, the same format the Go and Python services read, so
+      # everyone agrees which request this is.
+      header_type: w3c
+
 services:
   - name: marketplace
     url: http://marketplace:8000

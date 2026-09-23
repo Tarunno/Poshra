@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -24,6 +26,7 @@ import (
 	"github.com/Tarunno/Poshra/services/checkout/internal/payment"
 	"github.com/Tarunno/Poshra/services/checkout/internal/relay"
 	"github.com/Tarunno/Poshra/services/checkout/internal/store"
+	"github.com/Tarunno/Poshra/services/checkout/internal/telemetry"
 	inventoryv1 "github.com/Tarunno/Poshra/services/inventory/gen/poshra/inventory/v1"
 )
 
@@ -81,12 +84,30 @@ func migrate() error {
 }
 
 func run(cfg config.Config, log *slog.Logger, db *store.Store) error {
+	stopTracing, err := telemetry.Start(context.Background(), "checkout", log)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		// Its own context: the request one is already cancelled by now, and
+		// flushing with a dead context drops exactly the spans describing the
+		// shutdown you wanted to see.
+		flush, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := stopTracing(flush); err != nil {
+			log.Error("could not flush traces", "error", err)
+		}
+	}()
+
 	// dns:/// with round_robin balances across inventory's pods. gRPC holds one
 	// long-lived connection, so without this a client would pin itself to
 	// whichever pod it first resolved.
 	conn, err := grpc.NewClient(
 		"dns:///"+cfg.InventoryURL,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		// Carries the trace across the wire, so inventory's work appears
+		// inside this request rather than as a trace of its own.
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithDefaultServiceConfig(`{
 			"loadBalancingConfig": [{"round_robin": {}}],
 			"methodConfig": [{
@@ -128,8 +149,22 @@ func run(cfg config.Config, log *slog.Logger, db *store.Store) error {
 	)
 
 	httpServer := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           server.Handler(),
+		Addr: cfg.HTTPAddr,
+		// Continues the trace the gateway started, or starts one if this
+		// request arrived without any. The route name keeps the span named
+		// after the endpoint rather than the raw path, so /orders/{id} is one
+		// span name and not one per order.
+		Handler: otelhttp.NewHandler(
+			server.Handler(),
+			"checkout",
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return r.Method + " " + r.URL.Path
+			}),
+			// Probes would otherwise be most of the traces.
+			otelhttp.WithFilter(func(r *http.Request) bool {
+				return r.URL.Path != "/healthz" && r.URL.Path != "/readyz"
+			}),
+		),
 		ReadHeaderTimeout: 5 * time.Second,
 		// Generous enough for a slow payment, bounded so a stuck request
 		// cannot hold a connection forever.

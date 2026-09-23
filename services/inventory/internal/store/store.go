@@ -13,6 +13,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -67,6 +68,13 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	}
 	// A pool per pod, sized so that pods × connections stays well inside
 	// Postgres's limit. Connections are not free on the server side.
+	// Every query becomes a span inside the call that made it, which is how
+	// "the reservation was slow" becomes "it waited on a row lock".
+	cfg.ConnConfig.Tracer = otelpgx.NewTracer(
+		otelpgx.WithTrimSQLInSpanName(),
+		otelpgx.WithDisableQuerySpanNamePrefix(),
+	)
+
 	cfg.MaxConns = 8
 	cfg.MinConns = 1
 	cfg.MaxConnIdleTime = 5 * time.Minute

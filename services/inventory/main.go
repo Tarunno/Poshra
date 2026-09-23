@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -30,6 +31,7 @@ import (
 	"github.com/Tarunno/Poshra/services/inventory/internal/logging"
 	"github.com/Tarunno/Poshra/services/inventory/internal/server"
 	"github.com/Tarunno/Poshra/services/inventory/internal/store"
+	"github.com/Tarunno/Poshra/services/inventory/internal/telemetry"
 )
 
 func main() {
@@ -134,7 +136,22 @@ func migrate() error {
 }
 
 func run(cfg config.Config, log *slog.Logger, db *store.Store) error {
+	stopTracing, err := telemetry.Start(context.Background(), "inventory", log)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		flush, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := stopTracing(flush); err != nil {
+			log.Error("could not flush traces", "error", err)
+		}
+	}()
+
 	grpcServer := grpc.NewServer(
+		// Continues the trace checkout started, so a reservation is part of
+		// the order rather than a trace nobody can connect to anything.
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
 			server.RecoveryInterceptor(log),
 			server.LoggingInterceptor(log),
