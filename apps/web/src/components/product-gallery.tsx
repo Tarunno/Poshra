@@ -32,7 +32,11 @@ export function ProductGallery({ product }: { product: Product }) {
   return (
     <div className="space-y-3">
       <div
-        className="rounded-panel flex snap-x snap-mandatory overflow-x-auto"
+        className={`rounded-panel no-scrollbar flex ${
+          // One photograph is not a carousel: no snapping, and nothing that
+          // could show a scrollbar under a single static image.
+          single ? "" : "snap-x snap-mandatory overflow-x-auto"
+        }`}
         // A gallery is one figure; the thumbnails below navigate within it.
         aria-label={`Photographs of ${product.title}`}
       >

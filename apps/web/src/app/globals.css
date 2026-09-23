@@ -211,6 +211,14 @@
   /* Kantha edging: a running stitch set in from the panel edge, the way a
      hand-quilted border sits inside the hem. Purely decorative, so it never
      intercepts pointer events. */
+  /* A gallery scrolls, but the bar itself is chrome the thumbnails replace. */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   .stitched {
     position: relative;
   }
