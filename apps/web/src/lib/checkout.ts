@@ -72,6 +72,36 @@ export async function getCartQuietly(): Promise<Cart | null> {
   }
 }
 
+export type OrderItem = {
+  sku_id: string;
+  quantity: number;
+  unit_minor: number;
+  title: string;
+  artisan_name: string;
+};
+
+export type Order = {
+  id: string;
+  status: string;
+  total_minor: number;
+  currency: string;
+  reservation_id: string;
+  payment_ref?: string;
+  failure_reason?: string;
+  created_at: string;
+  items: OrderItem[];
+};
+
+/** One order, or null when it is not this buyer's. */
+export async function getOrder(id: string): Promise<Order | null> {
+  const response = await checkoutFetch(`/orders/${encodeURIComponent(id)}`);
+  // Someone else's order answers 404, never 403: the difference would confirm
+  // that it exists.
+  if (response.status === 404 || response.status === 401) return null;
+  if (!response.ok) throw new Error(`order request failed: ${response.status}`);
+  return (await response.json()) as Order;
+}
+
 export function cartCount(cart: Cart | null): number {
   return cart?.items.reduce((total, line) => total + line.quantity, 0) ?? 0;
 }

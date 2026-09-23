@@ -167,11 +167,17 @@ export default async function CartPage() {
       )}
 
       <div className="flex flex-wrap items-center gap-4">
-        {/* Step two of the buy flow. Disabled rather than hidden so the path
-            through the page is obvious while it is being built. */}
-        <Button size="lg" className="rounded-full px-7" disabled>
-          Continue to checkout
-        </Button>
+        {/* asChild hands the props to the link, which ignores `disabled` — so
+            an unusable cart needs a real button rather than a styled one. */}
+        {unavailable ? (
+          <Button size="lg" className="rounded-full px-7" disabled>
+            Continue to checkout
+          </Button>
+        ) : (
+          <Button asChild size="lg" className="rounded-full px-7">
+            <Link href="/checkout">Continue to checkout</Link>
+          </Button>
+        )}
         <Link
           href="/shop"
           className="text-sm font-semibold underline underline-offset-4"
