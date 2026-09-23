@@ -7,11 +7,14 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -30,6 +33,14 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 2 && os.Args[1] == "set-stock" {
+		if err := setStock(os.Args[2:]); err != nil {
+			println("set-stock failed:", err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
 		if err := migrate(); err != nil {
 			println("migration failed:", err.Error())
@@ -60,6 +71,45 @@ func main() {
 		log.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+// setStock writes stock levels from "<sku>=<quantity>" arguments.
+//
+// Levels belong to this service, so the tool that seeds them lives here rather
+// than reaching into the table from outside. Until an artisan publishing a
+// listing tells inventory about it, this is how the catalog and the stock
+// ledger are kept in step.
+func setStock(pairs []string) error {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		return errors.New("DATABASE_URL is required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	db, err := store.New(ctx, dsn)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	for _, pair := range pairs {
+		sku, raw, found := strings.Cut(pair, "=")
+		if !found {
+			return fmt.Errorf("expected <sku>=<quantity>, got %q", pair)
+		}
+		quantity, err := strconv.Atoi(raw)
+		if err != nil || quantity < 0 {
+			return fmt.Errorf("%q is not a quantity", raw)
+		}
+		level, err := db.SetStock(ctx, sku, int32(quantity))
+		if err != nil {
+			return fmt.Errorf("set %s: %w", sku, err)
+		}
+		fmt.Printf("%s available=%d reserved=%d\n",
+			level.SKUID, level.Available, level.Reserved)
+	}
+	return nil
 }
 
 // migrate applies the schema and exits.

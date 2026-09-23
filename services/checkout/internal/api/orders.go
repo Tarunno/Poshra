@@ -204,9 +204,18 @@ func (s *Server) placeOrder(
 	})
 	cancelReserve()
 	if err != nil {
-		if status.Code(err) == codes.FailedPrecondition {
+		switch status.Code(err) {
+		case codes.FailedPrecondition:
 			// Sold out between browsing and paying: a normal outcome, not an
 			// error to alert on.
+			return nil, http.StatusConflict, errorBody("some pieces are no longer in stock"), nil
+		case codes.NotFound:
+			// Inventory has never heard of this piece, which means the catalog
+			// is listing something it cannot sell. The buyer cannot act on the
+			// difference, so they get the same answer as sold out — but this
+			// is a data problem, so it is logged rather than swallowed.
+			s.log.Warn("catalog lists a sku inventory does not know",
+				"error", err, "order_id", orderID)
 			return nil, http.StatusConflict, errorBody("some pieces are no longer in stock"), nil
 		}
 		return nil, 0, nil, fmt.Errorf("reserve stock: %w", err)

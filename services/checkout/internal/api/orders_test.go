@@ -392,6 +392,21 @@ func TestSoldOutStockIsReportedAsConflict(t *testing.T) {
 	}
 }
 
+// A piece the catalog lists but inventory has never been told about is a data
+// problem, not the buyer's. They get the same answer as sold out, because a
+// 500 would invite them to retry something that can never succeed.
+func TestAnUnknownSkuIsReportedAsConflict(t *testing.T) {
+	sku := uuid.NewString()
+	h := newHarness(t, map[string]map[string]any{sku: product(sku, "Never stocked", 100_000)})
+	h.inventory.reserveErr = status.Error(codes.NotFound, "unknown sku: "+sku)
+	h.addToCart(t, sku, 1)
+
+	res := h.placeOrder(t, uuid.NewString(), "tok_ok")
+	if res.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for a sku inventory does not know, got %d", res.Code)
+	}
+}
+
 func TestRetryingWithTheSameKeyReturnsTheSameOrder(t *testing.T) {
 	sku := uuid.NewString()
 	h := newHarness(t, map[string]map[string]any{sku: product(sku, "Brass lamp", 890_000)})
