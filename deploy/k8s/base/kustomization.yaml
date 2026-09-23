@@ -15,6 +15,7 @@ resources:
   - postgres.yaml
   - marketplace.yaml
   - web.yaml
+  - network-policies.yaml
   - kong.yaml
 
 configMapGenerator:

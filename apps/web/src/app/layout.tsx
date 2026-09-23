@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { Hind_Siliguri } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { SessionKeeper } from "@/components/session-keeper";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getCurrentUser } from "@/lib/api";
@@ -35,6 +36,7 @@ export default async function RootLayout({
       <body
         className={`${sans.variable} ${bangla.variable} font-sans antialiased`}
       >
+        {user && <SessionKeeper />}
         <SiteHeader user={user} />
         <main className="mx-auto w-full max-w-6xl px-4 py-10">{children}</main>
         <SiteFooter />
