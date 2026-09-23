@@ -15,4 +15,5 @@ resources:
   - tempo.yaml
   - prometheus.yaml
   - otel-collector.yaml
+  - log-collector.yaml
   - grafana.yaml
