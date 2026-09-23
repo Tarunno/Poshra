@@ -116,6 +116,11 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: kong
+        # Loki and Tempo keep their chunks and blocks here too, from the
+        # observability namespace.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
         - ipBlock: { cidr: 192.168.110.0/24 }
       ports:
         - port: 9000

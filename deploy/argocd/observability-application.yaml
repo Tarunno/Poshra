@@ -1,0 +1,32 @@
+# The observability stack, deployed the same way as the application it watches.
+#
+# Learning from deploy/kafka, which is applied by hand and has caused three
+# outages: anything the cluster runs belongs in git, reconciled.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: poshra-observability
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Tarunno/Poshra.git
+    targetRevision: main
+    path: deploy/k8s/observability
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # The namespace is part of the manifests.
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 3m

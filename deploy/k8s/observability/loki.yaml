@@ -1,0 +1,136 @@
+# Logs.
+#
+# Loki indexes labels, not the log text, which is what makes it small enough to
+# run beside everything else here — Elasticsearch would want more memory for
+# logs alone than this whole stack uses for all three signals.
+#
+# The corollary is that labels must stay few and low-cardinality. A trace id as
+# a label would create one stream per request and fall over; it travels in the
+# line instead, and Grafana turns it into a link to the trace.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki
+  namespace: observability
+data:
+  loki.yaml: |
+    auth_enabled: false
+
+    server:
+      http_listen_port: 3100
+      log_level: warn
+
+    common:
+      instance_addr: 127.0.0.1
+      path_prefix: /loki
+      replication_factor: 1
+      ring:
+        kvstore:
+          store: inmemory
+      storage:
+        s3:
+          endpoint: minio.poshra.svc.cluster.local:9000
+          bucketnames: loki
+          access_key_id: ${MEDIA_ACCESS_KEY}
+          secret_access_key: ${MEDIA_SECRET_KEY}
+          s3forcepathstyle: true
+          insecure: true
+
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: tsdb
+          object_store: s3
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+
+    limits_config:
+      retention_period: 168h
+      allow_structured_metadata: true
+      # A home cluster does not need protecting from itself as hard as a
+      # shared one, but an unbounded ingest is still how a small disk dies.
+      ingestion_rate_mb: 8
+      ingestion_burst_size_mb: 16
+
+    compactor:
+      working_directory: /loki/compactor
+      retention_enabled: true
+      delete_request_store: s3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  namespace: observability
+spec:
+  selector:
+    app.kubernetes.io/name: loki
+  ports:
+    - name: http
+      port: 3100
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  namespace: observability
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: loki
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: loki
+          image: grafana/loki:3.4.2
+          # expand-env lets the config read the MinIO credentials from the
+          # environment instead of baking them into a ConfigMap.
+          args:
+            - -config.file=/etc/loki/loki.yaml
+            - -config.expand-env=true
+          env:
+            - name: MEDIA_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: minio-credentials, key: MEDIA_ACCESS_KEY } }
+            - name: MEDIA_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: minio-credentials, key: MEDIA_SECRET_KEY } }
+          ports:
+            - name: http
+              containerPort: 3100
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { memory: 640Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki
+            - name: data
+              mountPath: /loki
+      volumes:
+        - name: config
+          configMap: { name: loki }
+        # Chunks live in MinIO; this is the write-ahead log and the compactor's
+        # scratch space, neither of which needs to outlive the pod.
+        - name: data
+          emptyDir: { sizeLimit: 2Gi }

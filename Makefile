@@ -84,6 +84,22 @@ k8s-secret-anthropic: ## Store the Anthropic API key (ANTHROPIC_API_KEY=sk-... m
 		--dry-run=client -o yaml | kubectl apply -f -
 	@echo "stored; restart the assistant to pick it up: kubectl -n poshra rollout restart deploy/assistant"
 
+obs-secrets: ## Create the observability namespace's secrets (generated once)
+	kubectl get ns observability >/dev/null 2>&1 || kubectl create ns observability
+	@kubectl -n observability get secret grafana-admin >/dev/null 2>&1 || kubectl -n observability create secret generic grafana-admin \
+		--from-literal=username=admin \
+		--from-literal=password=$$(openssl rand -hex 16)
+	@# Loki and Tempo keep their data in the same MinIO the catalog uses, so
+	@# they need the same credentials in their own namespace.
+	@kubectl -n observability get secret minio-credentials >/dev/null 2>&1 || kubectl -n observability create secret generic minio-credentials \
+		--from-literal=MEDIA_ACCESS_KEY="$$(kubectl -n poshra get secret poshra-media -o jsonpath='{.data.MEDIA_ACCESS_KEY}' | base64 -d)" \
+		--from-literal=MEDIA_SECRET_KEY="$$(kubectl -n poshra get secret poshra-media -o jsonpath='{.data.MEDIA_SECRET_KEY}' | base64 -d)"
+	@echo "grafana admin password:"
+	@kubectl -n observability get secret grafana-admin -o jsonpath='{.data.password}' | base64 -d; echo
+
+obs-deploy: ## Apply the observability stack directly (Argo CD owns it normally)
+	kubectl apply -k deploy/k8s/observability
+
 k8s-deploy: ## Apply manifests to the cluster (TAG=<image tag>, default dev)
 	cd deploy/k8s/overlays/local && kubectl kustomize . | kubectl apply -f -
 	kubectl -n poshra rollout status deploy/marketplace --timeout=180s

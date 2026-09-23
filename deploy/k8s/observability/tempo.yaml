@@ -1,0 +1,144 @@
+# Traces.
+#
+# Tempo indexes nothing but the trace id: you arrive with an id from a log line
+# or a slow request and read the whole trace. That is why it costs so little to
+# run — finding traces by attribute is Grafana's job, through metrics and logs
+# that carry the id.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo
+  namespace: observability
+data:
+  tempo.yaml: |
+    server:
+      http_listen_port: 3200
+      log_level: warn
+
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+
+    ingester:
+      # Short blocks so a trace is queryable soon after it happens, which is
+      # what you want while debugging and irrelevant afterwards.
+      max_block_duration: 5m
+
+    compactor:
+      compaction:
+        block_retention: 168h
+
+    storage:
+      trace:
+        backend: s3
+        s3:
+          endpoint: minio.poshra.svc.cluster.local:9000
+          bucket: tempo
+          access_key: ${MEDIA_ACCESS_KEY}
+          secret_key: ${MEDIA_SECRET_KEY}
+          insecure: true
+          forcepathstyle: true
+        wal:
+          path: /var/tempo/wal
+
+    # Turns spans into RED metrics without anyone instrumenting a counter:
+    # rate, errors and duration per service, derived from the traces already
+    # arriving.
+    metrics_generator:
+      registry:
+        external_labels:
+          source: tempo
+      storage:
+        path: /var/tempo/generator/wal
+        remote_write:
+          - url: http://prometheus.observability.svc.cluster.local:9090/api/v1/write
+            send_exemplars: true
+      traces_storage:
+        path: /var/tempo/generator/traces
+
+    overrides:
+      defaults:
+        metrics_generator:
+          processors: [service-graphs, span-metrics]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  namespace: observability
+spec:
+  selector:
+    app.kubernetes.io/name: tempo
+  ports:
+    - name: http
+      port: 3200
+      targetPort: http
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempo
+  namespace: observability
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tempo
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: tempo
+          image: grafana/tempo:2.7.1
+          args:
+            - -config.file=/etc/tempo/tempo.yaml
+            - -config.expand-env=true
+          env:
+            - name: MEDIA_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: minio-credentials, key: MEDIA_ACCESS_KEY } }
+            - name: MEDIA_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: minio-credentials, key: MEDIA_SECRET_KEY } }
+          ports:
+            - name: http
+              containerPort: 3200
+            - name: otlp-grpc
+              containerPort: 4317
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { memory: 640Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tempo
+            - name: data
+              mountPath: /var/tempo
+      volumes:
+        - name: config
+          configMap: { name: tempo }
+        - name: data
+          emptyDir: { sizeLimit: 2Gi }

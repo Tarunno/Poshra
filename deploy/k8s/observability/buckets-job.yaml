@@ -1,0 +1,60 @@
+# Loki and Tempo expect their buckets to exist; neither creates one.
+#
+# A PreSync hook, so the buckets are there before either starts rather than
+# after the first crash loop. It is idempotent, which is what lets it run on
+# every sync without thinking about it.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-buckets
+  namespace: observability
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: create-buckets
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: mc
+          image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              mc alias set store http://minio.poshra.svc.cluster.local:9000 \
+                "$MEDIA_ACCESS_KEY" "$MEDIA_SECRET_KEY"
+              mc mb --ignore-existing store/loki
+              mc mb --ignore-existing store/tempo
+              echo "buckets ready"
+          env:
+            - name: MEDIA_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: minio-credentials, key: MEDIA_ACCESS_KEY } }
+            - name: MEDIA_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: minio-credentials, key: MEDIA_SECRET_KEY } }
+            # mc writes its config somewhere; the root filesystem is read-only.
+            - name: MC_CONFIG_DIR
+              value: /tmp/mc
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 32Mi }
