@@ -5,6 +5,7 @@ credentials. Writes belong to the artisan who owns the listing.
 """
 
 from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
+from django.core.exceptions import ValidationError
 from django.db import connection
 from django.db.models import Count, Max, Min, Q, QuerySet
 from rest_framework import mixins, status, viewsets
@@ -266,7 +267,9 @@ class ProductViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["delete"],
-        url_path=r"images/(?P<image_id>[0-9]+)",
+        # Every id in this service is a UUID, so the digits-only pattern this
+        # started as matched nothing and the route answered 404.
+        url_path=r"images/(?P<image_id>[0-9a-fA-F-]{36})",
     )
     def remove_image(
         self, request: Request, slug: str | None = None, image_id: str | None = None
@@ -274,7 +277,10 @@ class ProductViewSet(viewsets.ModelViewSet):
         product = self.get_object()
         self.check_object_permissions(request, product)
 
-        image = product.images.filter(pk=image_id).first()
+        try:
+            image = product.images.filter(pk=image_id).first()
+        except (ValidationError, ValueError):
+            image = None  # a well-shaped but invalid uuid
         if image is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
 

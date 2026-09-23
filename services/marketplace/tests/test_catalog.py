@@ -530,3 +530,30 @@ def test_a_stranger_cannot_add_a_photograph(client, artisan, craft, product):
         {"file": SimpleUploadedFile("p.png", _png_bytes(), content_type="image/png")},
     )
     assert response.status_code in (401, 403)
+
+
+def test_an_artisan_can_remove_a_photograph(client, artisan, craft, product, monkeypatch):
+    from catalog import views
+    from catalog.models import ProductImage
+
+    image = ProductImage.objects.create(product=product, url="http://example.test/a.jpg")
+    # The object store is not involved in the test; the row is what matters.
+    monkeypatch.setattr(views, "delete_image", lambda url: None)
+
+    sign_in(client, artisan.user.email)
+    response = client.delete(f"{PRODUCTS}/{product.slug}/images/{image.id}")
+
+    # Ids here are UUIDs; a digits-only route pattern matched nothing and
+    # answered 404 for every delete.
+    assert response.status_code == 204
+    assert not ProductImage.objects.filter(pk=image.id).exists()
+
+
+def test_another_artisan_cannot_remove_a_photograph(client, artisan, other_artisan, craft, product):
+    from catalog.models import ProductImage
+
+    image = ProductImage.objects.create(product=product, url="http://example.test/a.jpg")
+    sign_in(client, other_artisan.user.email)
+
+    assert client.delete(f"{PRODUCTS}/{product.slug}/images/{image.id}").status_code == 403
+    assert ProductImage.objects.filter(pk=image.id).exists()
