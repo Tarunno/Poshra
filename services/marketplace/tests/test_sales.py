@@ -104,6 +104,39 @@ def test_replaying_the_same_event_does_not_double_count(artisan, craft):
     assert SaleLine.objects.get().quantity == 2
 
 
+def test_a_sale_takes_the_piece_off_the_listing(artisan, craft):
+    product = make_product(artisan, craft)  # stock=5
+
+    record_order(order_event(product, quantity=2))
+
+    product.refresh_from_db()
+    # Inventory settled the ledger; this is the number the product page shows,
+    # and it used to sit at 5 for ever while the ledger said 3.
+    assert product.stock == 3
+
+
+def test_replaying_a_sale_does_not_take_the_piece_off_twice(artisan, craft):
+    product = make_product(artisan, craft)
+    event = order_event(product, quantity=2)
+
+    record_order(event)
+    record_order(event)
+
+    product.refresh_from_db()
+    assert product.stock == 3
+
+
+def test_a_listing_never_goes_below_zero(artisan, craft):
+    product = make_product(artisan, craft)  # stock=5
+
+    # The catalogue's copy can be behind the ledger — a level published while
+    # the broker was down, say. It still must not advertise negative stock.
+    record_order(order_event(product, quantity=9))
+
+    product.refresh_from_db()
+    assert product.stock == 0
+
+
 def test_a_sale_keeps_the_price_it_was_sold_at(artisan, craft):
     product = make_product(artisan, craft, price=560000)
     record_order(order_event(product, quantity=1))

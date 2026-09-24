@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from django.db import transaction
+from django.db.models import F, Value
+from django.db.models.functions import Greatest
 from django.utils.dateparse import parse_datetime
 
 from catalog.models import Product
@@ -94,7 +96,7 @@ def record_order(payload: dict) -> int:
             # it is recorded with the title the buyer saw.
             log.warning("sale for unknown product", extra={"sku_id": line.sku_id})
 
-        SaleLine.objects.update_or_create(
+        _, created = SaleLine.objects.update_or_create(
             order_id=order_id,
             sku_id=line.sku_id,
             defaults={
@@ -108,6 +110,30 @@ def record_order(payload: dict) -> int:
                 "occurred_at": occurred_at,
             },
         )
+        if created and product is not None:
+            _reduce_listed_stock(product, line.quantity)
         written += 1
 
     return written
+
+
+def _reduce_listed_stock(product: Product, quantity: int) -> None:
+    """Take a sold piece off the listing's displayed count.
+
+    Inventory is the authority on stock and already moved its ledger when the
+    order settled; this number is the catalogue's copy of it, the one a buyer
+    reads on the product page. Left alone it drifts upward for ever — and worse,
+    the next time the artisan saved anything the catalogue republished its stale
+    level and overwrote the ledger with it.
+
+    Only on `created`, so replaying the topic cannot subtract twice. `update()`
+    rather than `save()`, so no post_save fires: inventory settled this sale
+    itself and does not need to be told about it.
+
+    Clamped at zero because the copy can already be behind — the count must
+    never go negative, and a listing that reads 0 is the honest answer when
+    this service is not sure.
+    """
+    Product.objects.filter(pk=product.pk).update(
+        stock=Greatest(F("stock") - quantity, Value(0))
+    )
