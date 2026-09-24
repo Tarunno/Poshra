@@ -3,10 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <style>
-      /* Composition for the README hero: a laptop with the shop, a browser
-         window behind it showing an artisan speaking a listing into being,
-         and a phone in front with the mobile storefront. Three things the
-         project claims, in one picture. */
+      /* Composition for the README hero: a laptop with the page an artisan
+         speaks a listing into, the shop in a browser window behind it, and
+         the mobile storefront on a phone in front. Three things the project
+         claims, in one picture.
+         The drafting page takes the laptop because it is the one that has to
+         be read rather than recognised: the shop is legible as a grid of
+         photographs at any size, a microphone and a sentence are not. */
       :root {
         --ink: #1a1523;
         --cream: #fffcf5;
@@ -74,19 +77,16 @@
         font-size: 10px;
         color: rgba(26, 21, 35, 0.5);
       }
-      /* The window shows the panel, not the page around it. A screenshot of
-         a wide page dropped into a 880px frame renders its own side margins
-         at full size and its text at none, which is how the interesting part
-         ends up illegible in a README shown at 960px.
-         The region x=110..1380, y=230.. of a 1491x933 capture. */
+      /* The window shows the top of the shop; the rest of that page is more
+         of the same grid, and the laptop is in front of it anyway. */
       .browser .shot { position: relative; overflow: hidden; height: 300px; }
       .browser .shot img {
         position: absolute;
         display: block;
-        width: 1033px;
+        width: 880px;
         max-width: none;
-        left: -76px;
-        top: -159px;
+        left: 0;
+        top: 0;
       }
 
       /* ---------- laptop (main) ---------- */
@@ -167,15 +167,15 @@
           <span class="dot" style="background: #ff5f57"></span>
           <span class="dot" style="background: #febc2e"></span>
           <span class="dot" style="background: #28c840"></span>
-          <span class="bar">poshra.local/dashboard/listings/new</span>
+          <span class="bar">poshra.local/shop</span>
         </div>
-        <div class="shot"><img src="cap-drafting.png" alt="" /></div>
+        <div class="shot"><img src="cap-shop.png" alt="" /></div>
       </div>
 
       <div class="laptop">
         <div class="lid">
           <div class="camera"></div>
-          <div class="screen"><img src="cap-shop.png" alt="" /></div>
+          <div class="screen"><img src="cap-drafting.png" alt="" /></div>
         </div>
         <div class="base"><div class="notch-base"></div></div>
       </div>
