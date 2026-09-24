@@ -1,7 +1,7 @@
 # The observability stack, deployed the same way as the application it watches.
 #
-# Learning from deploy/kafka, which is applied by hand and has caused three
-# outages: anything the cluster runs belongs in git, reconciled.
+# Anything the cluster runs belongs in git, reconciled — a lesson deploy/kafka
+# taught three times before it was given an Application of its own.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

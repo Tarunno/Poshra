@@ -1,0 +1,41 @@
+# Kafka, reconciled from git like everything else it carries events for.
+#
+# This was the last thing in the cluster applied by hand, and it behaved like
+# it: topics created in the wrong namespace because the kubeconfig had no
+# default one, and a broker whose config in git had quietly stopped matching
+# the broker that was running. Nothing else here can be edited by kubectl and
+# stay edited; this should not be the exception.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: poshra-kafka
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Tarunno/Poshra.git
+    targetRevision: main
+    path: deploy/kafka
+    directory:
+      # values.yaml beside it is Helm values for the Strimzi operator, which is
+      # installed once by hand the way Argo CD itself is. It is not a manifest,
+      # so Argo must not try to apply it.
+      include: kafka.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: poshra
+  syncPolicy:
+    automated:
+      # The Kafka CR and its topics are the whole of this Application: removing
+      # a KafkaTopic from git is meant to remove it from the cluster.
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false   # the poshra Application owns the namespace
+      - PrunePropagationPolicy=foreground
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 3m
