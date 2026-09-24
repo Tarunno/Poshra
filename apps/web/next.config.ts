@@ -12,6 +12,15 @@ const nextConfig: NextConfig = {
   // Standalone output bundles only the files the server needs, so the runtime
   // image does not carry the whole node_modules tree.
   output: "standalone",
+  experimental: {
+    serverActions: {
+      // A server action's body is capped at 1MB by default, and a photograph
+      // from a phone is several. Drafting a listing sends one through an
+      // action, so the cap has to clear what the assistant accepts (6MB) plus
+      // what multipart adds in boundaries and part headers.
+      bodySizeLimit: "7mb",
+    },
+  },
   images: {
     // Catalog photographs currently come from Wikimedia Commons. An explicit
     // allow-list keeps the image optimiser from being used as an open proxy.
