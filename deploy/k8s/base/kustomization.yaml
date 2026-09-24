@@ -46,6 +46,10 @@ configMapGenerator:
       - DB_NAME=marketplace
       - DB_USER=marketplace
       - JWT_KEY_ID=poshra-cluster-1
+      # Read by `manage.py reconcile_stock` only. Nothing serving a request
+      # calls inventory: the storefront reads this service's own copy, so a
+      # product page stays up when the ledger is down.
+      - INVENTORY_ADDR=inventory:50051
       # The LAN gateway is plain HTTP for now, so Secure cookies would never be
       # stored by the browser. This must be true once TLS is in front.
       - AUTH_COOKIE_SECURE=false

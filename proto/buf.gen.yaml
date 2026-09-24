@@ -12,3 +12,9 @@ plugins:
     opt:
       - paths=source_relative
       - require_unimplemented_servers=true
+  # The same messages for the catalog, which reads levels back when repairing
+  # its copy of them (services/marketplace/catalog/inventory_client.py).
+  - remote: buf.build/protocolbuffers/python:v29.3
+    out: ../services/marketplace/gen
+  - remote: buf.build/grpc/python:v1.69.0
+    out: ../services/marketplace/gen

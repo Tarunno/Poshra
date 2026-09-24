@@ -13,6 +13,11 @@ dependencies = [
     "confluent-kafka>=2.6",
     "boto3>=1.35",
     "pillow>=11.0",
+    # Direct: the stock reconcile command calls inventory's gRPC API with the
+    # stubs in gen/. It arrives with the OTLP exporter too, but a module this
+    # code imports by name belongs in the list.
+    "grpcio>=1.68",
+    "protobuf>=5.29",
     "opentelemetry-sdk>=1.30",
     "opentelemetry-exporter-otlp-proto-grpc>=1.30",
     "opentelemetry-instrumentation-psycopg>=0.51b0",

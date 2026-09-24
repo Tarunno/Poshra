@@ -1,9 +1,15 @@
 import base64
+import sys
 from pathlib import Path
 
 from config.env import env_bool, env_int, env_list, env_str
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# The protobuf stubs generated from proto/ (see proto/buf.gen.yaml). They are
+# generated with absolute imports rooted at the proto package, so their
+# directory has to be an import root rather than a package inside this app.
+sys.path.insert(0, str(BASE_DIR / "gen"))
 
 SECRET_KEY = env_str("DJANGO_SECRET_KEY")
 DEBUG = env_bool("DJANGO_DEBUG", default=False)
@@ -31,6 +37,10 @@ ORDERS_TOPIC = env_str("ORDERS_TOPIC", "poshra.orders.created.v1")
 SALES_CONSUMER_GROUP = env_str("SALES_CONSUMER_GROUP", "marketplace-sales-readmodel")
 # Where this service announces what it has to sell, for the inventory ledger.
 STOCK_TOPIC = env_str("STOCK_TOPIC", "poshra.catalog.stock.changed.v1")
+# The ledger itself, for the one command that reads it back. Nothing serving a
+# request calls inventory: the storefront reads this service's own copy, which
+# is what keeps a product page up when inventory is down.
+INVENTORY_ADDR = env_str("INVENTORY_ADDR", "")
 
 # Object storage for photographs. The endpoint is where this service writes;
 # the public base is what a browser reads, through the gateway. They differ,

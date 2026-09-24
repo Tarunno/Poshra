@@ -111,6 +111,9 @@ k8s-deploy: ## Apply manifests to the cluster (TAG=<image tag>, default dev)
 sync-stock: ## Republish every listing's stock level to the inventory ledger
 	kubectl -n poshra exec deploy/marketplace -- python manage.py sync_stock
 
+reconcile-stock: ## Repair the catalogue's counts FROM the ledger (DRY=1 to preview)
+	kubectl -n poshra exec deploy/marketplace -- python manage.py reconcile_stock $(if $(DRY),--dry-run,)
+
 k8s-migrations: ## Show the result of the last migration run
 	kubectl -n poshra get jobs -l 'app.kubernetes.io/name in (marketplace-migrate,inventory-migrate,checkout-migrate)'
 

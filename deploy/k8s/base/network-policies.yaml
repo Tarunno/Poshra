@@ -200,6 +200,12 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: checkout
+        # The catalog reads levels back in one place only: `reconcile_stock`,
+        # repairing its own copy from the ledger that owns it. It never calls
+        # inventory to serve a page.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: marketplace
       ports:
         - { protocol: TCP, port: 50051 }
     - from:
