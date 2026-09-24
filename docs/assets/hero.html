@@ -4,7 +4,9 @@
     <meta charset="utf-8" />
     <style>
       /* Composition for the README hero: a laptop with the shop, a browser
-         window with a product page behind it, and a phone in front. */
+         window behind it showing an artisan speaking a listing into being,
+         and a phone in front with the mobile storefront. Three things the
+         project claims, in one picture. */
       :root {
         --ink: #1a1523;
         --cream: #fffcf5;
@@ -72,7 +74,19 @@
         font-size: 10px;
         color: rgba(26, 21, 35, 0.5);
       }
-      .browser img { display: block; width: 100%; }
+      /* Trims the site header off the capture so the panel — and the
+         microphone, which is the point of the picture — sits high in the
+         window instead of behind the laptop. The region from y=150 of a
+         1999x996 capture, shown at the window's width. */
+      .browser .shot { position: relative; overflow: hidden; height: 286px; }
+      .browser .shot img {
+        position: absolute;
+        display: block;
+        width: 880px;
+        max-width: none;
+        left: 0;
+        top: -66px;
+      }
 
       /* ---------- laptop (main) ---------- */
       .laptop { position: absolute; left: 70px; bottom: 96px; width: 1000px; }
@@ -152,9 +166,9 @@
           <span class="dot" style="background: #ff5f57"></span>
           <span class="dot" style="background: #febc2e"></span>
           <span class="dot" style="background: #28c840"></span>
-          <span class="bar">poshra.local/products/jamdani-saree-white-with-indigo-geometry</span>
+          <span class="bar">poshra.local/dashboard/listings/new</span>
         </div>
-        <img src="cap-product.png" alt="" />
+        <div class="shot"><img src="cap-drafting.png" alt="" /></div>
       </div>
 
       <div class="laptop">

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/hero.png" alt="Poshra on a laptop, in a browser window and on a phone: the shop with craft filters, a nakshi kantha product page, and the mobile storefront" width="960">
+  <img src="docs/assets/hero.png" alt="Poshra on a laptop, in a browser window and on a phone: the shop with craft filters and the assistant open, an artisan speaking a listing into being, and the mobile storefront" width="960">
 </p>
 
 <p align="center">
