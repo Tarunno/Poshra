@@ -12,6 +12,14 @@ const nextConfig: NextConfig = {
   // Standalone output bundles only the files the server needs, so the runtime
   // image does not carry the whole node_modules tree.
   output: "standalone",
+  // Set to the commit at build time (see the Dockerfile). A browser holding a
+  // page from an older deployment carries that older id, and Next answers a
+  // mismatch with a full reload rather than letting it call a server action
+  // the running build has never heard of — which is the "Failed to find
+  // Server Action" every deploy used to hand to anyone with a tab open.
+  //
+  // Left undefined in development, where there is no deployment to skew from.
+  deploymentId: process.env.NEXT_DEPLOYMENT_ID || undefined,
   experimental: {
     serverActions: {
       // A server action's body is capped at 1MB by default, and a photograph

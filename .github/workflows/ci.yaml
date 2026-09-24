@@ -185,6 +185,9 @@ jobs:
             context: gateway/kong
           - service: web
             context: apps/web
+            # Stamped into the build so a browser on yesterday's page reloads
+            # instead of calling a server action that no longer exists.
+            buildArgs: NEXT_DEPLOYMENT_ID=${{ github.sha }}
           - service: inventory
             context: services/inventory
           - service: checkout
@@ -211,6 +214,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile || format('{0}/Dockerfile', matrix.context) }}
+          build-args: ${{ matrix.buildArgs }}
           push: true
           # Immutable tag (commit SHA) is what gets deployed; `main` is a
           # convenience pointer. Never deploy a moving tag.

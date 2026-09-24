@@ -11,6 +11,13 @@ FROM node:22-slim AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+# The commit this image was built from. Next stamps it on to the assets and
+# the server functions it emits, so a browser holding an older page can be
+# told it is holding an older page instead of calling a server action that no
+# longer exists. Empty in a local build, which is the same as not using it.
+ARG NEXT_DEPLOYMENT_ID=""
+ENV NEXT_DEPLOYMENT_ID=$NEXT_DEPLOYMENT_ID
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

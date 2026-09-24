@@ -28,10 +28,14 @@ A marketplace that connects Bangladeshi artisans to buyers abroad and keeps the 
 attached to the work: every piece says who made it and which district it came from.
 
 **Buyers** ask in plain language — *"a wedding gift under ৳8,000"*, *"something handwoven
-from Sylhet"* — and get real pieces back, not keyword soup. **Artisans** photograph a piece,
-describe it in Bangla, and watch what sells. **Agents** get the storefront as a set of
-described tools; the model can fill a cart but never spend money — buying ends with a human
-on the checkout page.
+from Sylhet"* — and get real pieces back, not keyword soup. **Artisans** photograph a piece
+and say what it is out loud, in Bangla, and get a listing in English to correct: title,
+description, materials and a price judged against comparable work already in the shop.
+**Agents** get the storefront as a set of described tools; the model can fill a cart but
+never spend money — buying ends with a human on the checkout page.
+
+Nothing the model writes is published. It fills a form the artisan corrects, for the same
+reason it can total a cart but not pay for it.
 
 <p align="center">
   <img src="docs/assets/cover-product.png" alt="The Poshra storefront on a laptop with the assistant open, the artisan dashboard, the listing editor, and the mobile storefront on a phone" width="960">
