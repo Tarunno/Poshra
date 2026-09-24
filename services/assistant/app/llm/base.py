@@ -56,6 +56,20 @@ class Photograph:
 
 
 @dataclass(frozen=True)
+class Recording:
+    """The artisan speaking, as bytes.
+
+    Sent to the model as it was recorded rather than transcribed first: one
+    call that hears her and writes the listing is cheaper and loses less than
+    two, and a transcript of Bangla is not the useful artefact — the listing
+    is.
+    """
+
+    media_type: str
+    data: bytes
+
+
+@dataclass(frozen=True)
 class Turn:
     """One answer from the model: either it spoke, or it asked for tools."""
 
@@ -77,6 +91,11 @@ class Conversation(Protocol):
 
 class Provider(Protocol):
     name: str
+    # Whether this provider can be given a recording. Asked rather than
+    # assumed: a deployment picks its provider, and a feature that silently
+    # ignored the artisan's voice would be worse than one that says it cannot
+    # hear her.
+    accepts_audio: bool
 
     def start(
         self,
@@ -93,6 +112,7 @@ class Provider(Protocol):
         instruction: str,
         schema: dict[str, Any],
         photograph: Photograph | None = None,
+        recording: Recording | None = None,
     ) -> dict[str, Any]:
         """One answer, shaped by a schema rather than by hope.
 

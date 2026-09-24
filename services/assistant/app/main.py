@@ -20,8 +20,8 @@ from app.assistant import Assistant
 from app.catalog import CatalogClient
 from app.checkout import CheckoutClient
 from app.config import Config, ConfigError
-from app.listing import ListingDrafter, NothingToDraftFrom
-from app.llm.base import Photograph
+from app.listing import CannotHearHer, ListingDrafter, NothingToDraftFrom
+from app.llm.base import Photograph, Recording
 from app.llm.gemini import DraftFailed, RateLimited
 from app.logging import configure_logging
 
@@ -36,6 +36,23 @@ MAX_MESSAGE_CHARS = 2000
 # detail no listing needs, and the request is slower for nobody's benefit.
 MAX_PHOTO_BYTES = 6 * 1024 * 1024
 PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+# A voice note, not a podcast: a minute and a half of opus is a couple of
+# hundred kilobytes, so anything approaching this is a recording nobody meant
+# to send. The containers are the ones browsers actually record — Chrome gives
+# webm, Safari mp4, Firefox ogg — and all four were accepted by the model
+# before this was written, so nothing is transcoded on the way through.
+MAX_VOICE_BYTES = 3 * 1024 * 1024
+VOICE_TYPES = {
+    "audio/webm",
+    "audio/ogg",
+    "audio/mp4",
+    "audio/mpeg",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/aac",
+    "audio/flac",
+}
 # A few sentences in Bangla. Bengali is three bytes a character in UTF-8, so
 # this is characters rather than bytes on purpose.
 MAX_NOTES_CHARS = 2000
@@ -146,6 +163,7 @@ async def draft_listing(
     craft: str = Form(default=""),
     district: str = Form(default=""),
     photo: UploadFile | None = File(default=None),
+    voice: UploadFile | None = File(default=None),
     x_user_id: str | None = Header(default=None),
 ) -> JSONResponse:
     """A photograph and a few words in Bangla, returned as a listing to correct.
@@ -160,6 +178,7 @@ async def draft_listing(
         raise HTTPException(status_code=401, detail="Sign in to draft a listing.")
 
     photograph = await _read_photograph(photo)
+    recording = await _read_recording(voice)
     if len(notes) > MAX_NOTES_CHARS:
         notes = notes[:MAX_NOTES_CHARS]
 
@@ -168,13 +187,22 @@ async def draft_listing(
         drafted = await drafter.draft(
             notes=notes,
             photograph=photograph,
+            recording=recording,
             craft_hint=craft.strip(),
             district=district.strip(),
         )
     except NothingToDraftFrom as error:
         raise HTTPException(
             status_code=400,
-            detail="Add a photograph or describe the piece, and I will draft it.",
+            detail="Add a photograph, say a few words, or describe the piece.",
+        ) from error
+    except CannotHearHer as error:
+        # A deployment decision, not her mistake, so the message says what to
+        # do rather than what went wrong.
+        log.error("provider cannot hear", extra={"error": str(error)})
+        raise HTTPException(
+            status_code=503,
+            detail="This assistant cannot listen to recordings. Type a few words instead.",
         ) from error
     except RateLimited as error:
         log.warning("model rate limited", extra={"error": str(error), "user_id": x_user_id})
@@ -197,6 +225,7 @@ async def draft_listing(
         extra={
             "user_id": x_user_id,
             "had_photo": photograph is not None,
+            "had_voice": recording is not None,
             "notes_chars": len(notes),
             "confidence": drafted["confidence"],
             "craft": drafted["craft"],
@@ -229,3 +258,28 @@ async def _read_photograph(photo: UploadFile | None) -> Photograph | None:
     if not data:
         return None
     return Photograph(media_type=media_type, data=data)
+
+
+async def _read_recording(voice: UploadFile | None) -> Recording | None:
+    """Read the voice note, refusing anything that is not one."""
+    if voice is None or not voice.filename:
+        return None
+
+    # Browsers label a recording with its codec — "audio/webm;codecs=opus" —
+    # and the parameter is not part of the type the model is told about.
+    media_type = (voice.content_type or "").split(";")[0].strip().lower()
+    if media_type not in VOICE_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail="That recording is in a format the assistant cannot play.",
+        )
+
+    data = await voice.read(MAX_VOICE_BYTES + 1)
+    if len(data) > MAX_VOICE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="That recording is too long — a minute or two is plenty.",
+        )
+    if not data:
+        return None
+    return Recording(media_type=media_type, data=data)

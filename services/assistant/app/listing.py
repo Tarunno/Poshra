@@ -22,7 +22,7 @@ import logging
 from typing import Any
 
 from app.catalog import CatalogClient
-from app.llm.base import Photograph
+from app.llm.base import Photograph, Recording
 
 log = logging.getLogger(__name__)
 
@@ -73,6 +73,15 @@ DRAFT_SCHEMA: dict[str, Any] = {
                 " against, so the artisan can disagree with it."
             ),
         },
+        "heard": {
+            "type": "string",
+            "description": (
+                "If there is a recording: what the artisan said, written out in"
+                " the language she spoke. Empty if there is no recording. This is"
+                " shown back to her, so she can see whether you understood her"
+                " before she trusts the rest."
+            ),
+        },
         "confidence": {
             "type": "string",
             "enum": ["high", "medium", "low"],
@@ -86,7 +95,15 @@ SYSTEM = """You write listings for Poshra, a marketplace that sells Bangladeshi
 handicrafts to buyers abroad.
 
 You are given a photograph of one piece and the artisan's own words about it,
-usually in Bangla. Turn them into a listing in plain English.
+usually in Bangla — typed, spoken, or both. Turn them into a listing in plain
+English.
+
+When she speaks, listen for what a buyer would want to know and would never
+think to ask: what it is made of, how long it took, where the pattern comes
+from, what it is used for at home. Write down what you heard, in her own
+language, so she can see whether you understood before she trusts the rest. If
+the recording is unclear, say so in that field rather than inventing what she
+might have said.
 
 Write the way a careful shopkeeper would describe something to a customer who
 is genuinely interested: concrete, specific, no marketing language. "Handwoven
@@ -103,6 +120,10 @@ but a minute of editing."""
 
 class NothingToDraftFrom(ValueError):
     """Neither a photograph nor any words: there is nothing to work from."""
+
+
+class CannotHearHer(RuntimeError):
+    """A recording arrived at a provider with no ears."""
 
 
 def _comparable(product: dict[str, Any]) -> dict[str, Any]:
@@ -124,21 +145,30 @@ class ListingDrafter:
         *,
         notes: str,
         photograph: Photograph | None,
+        recording: Recording | None = None,
         craft_hint: str = "",
         district: str = "",
     ) -> dict[str, Any]:
         notes = notes.strip()
-        if not notes and photograph is None:
-            raise NothingToDraftFrom("a photograph or a description is needed")
+        if not notes and photograph is None and recording is None:
+            raise NothingToDraftFrom("a photograph, a recording or a description is needed")
+
+        if recording is not None and not getattr(self._provider, "accepts_audio", False):
+            # Better to say so than to draft from the photograph alone and let
+            # her think everything she said was taken into account.
+            raise CannotHearHer(f"{getattr(self._provider, 'name', 'this model')} cannot hear")
 
         crafts = await self._crafts()
         comparables = await self._comparables(craft_hint)
 
         drafted = await self._provider.structured(
             system=SYSTEM,
-            instruction=_instruction(notes, crafts, comparables, district),
+            instruction=_instruction(
+                notes, crafts, comparables, district, spoken=recording is not None
+            ),
             schema=DRAFT_SCHEMA,
             photograph=photograph,
+            recording=recording,
         )
         return self._settle(drafted, crafts)
 
@@ -183,6 +213,7 @@ class ListingDrafter:
             "craft": craft,
             "suggested_price_minor": price,
             "price_reasoning": str(drafted.get("price_reasoning") or "").strip(),
+            "heard": str(drafted.get("heard") or "").strip(),
             "confidence": drafted.get("confidence")
             if drafted.get("confidence") in {"high", "medium", "low"}
             else "low",
@@ -194,11 +225,21 @@ def _instruction(
     crafts: list[dict[str, Any]],
     comparables: list[dict[str, Any]],
     district: str,
+    spoken: bool = False,
 ) -> str:
     lines = []
+    if spoken:
+        lines.append(
+            "The recording is the artisan describing this piece in her own "
+            "language. Use what she says as the source for the listing."
+        )
     if notes:
-        lines.append(f"The artisan says, in her own words:\n{notes}")
-    else:
+        lines.append(
+            f"She also writes:\n{notes}"
+            if spoken
+            else f"The artisan says, in her own words:\n{notes}"
+        )
+    elif not spoken:
         lines.append("The artisan wrote nothing; work from the photograph alone.")
 
     if district:

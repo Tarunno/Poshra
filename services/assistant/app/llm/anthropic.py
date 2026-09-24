@@ -11,6 +11,7 @@ from anthropic import AsyncAnthropic
 from app.llm.base import (
     Conversation,
     Photograph,
+    Recording,
     ToolCall,
     ToolResult,
     ToolSpec,
@@ -96,8 +97,16 @@ class AnthropicConversation:
         )
 
 
+class CannotHear(RuntimeError):
+    """This provider was given a recording it has no way to listen to."""
+
+
 class AnthropicProvider:
     name = "anthropic"
+    # Claude reads images but not audio. Said plainly here so the drafter can
+    # tell an artisan to type instead, rather than quietly dropping what she
+    # said and drafting from the photograph alone.
+    accepts_audio = False
 
     def __init__(
         self, api_key: str, model: str, max_tokens: int, client: Any | None = None
@@ -129,7 +138,11 @@ class AnthropicProvider:
         instruction: str,
         schema: dict[str, Any],
         photograph: Photograph | None = None,
+        recording: Recording | None = None,
     ) -> dict[str, Any]:
+        if recording is not None:
+            raise CannotHear("claude cannot be given a recording")
+
         content: list[dict[str, Any]] = []
         if photograph is not None:
             # First, so the instruction reads as being about this picture.

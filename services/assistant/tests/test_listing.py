@@ -7,8 +7,13 @@ and answers from a script.
 import pytest
 
 from app.catalog import CatalogClient
-from app.listing import DRAFT_SCHEMA, ListingDrafter, NothingToDraftFrom
-from app.llm.base import Photograph
+from app.listing import (
+    DRAFT_SCHEMA,
+    CannotHearHer,
+    ListingDrafter,
+    NothingToDraftFrom,
+)
+from app.llm.base import Photograph, Recording
 
 CRAFTS = [
     {"slug": "jute-craft", "name": "Jute craft"},
@@ -37,16 +42,20 @@ GOOD_DRAFT = {
 
 
 class StubProvider:
+    name = "stub"
+    accepts_audio = True
+
     def __init__(self, answer: dict) -> None:
         self.answer = answer
         self.asked: dict = {}
 
-    async def structured(self, *, system, instruction, schema, photograph=None):
+    async def structured(self, *, system, instruction, schema, photograph=None, recording=None):
         self.asked = {
             "system": system,
             "instruction": instruction,
             "schema": schema,
             "photograph": photograph,
+            "recording": recording,
         }
         return self.answer
 
@@ -158,3 +167,38 @@ def test_the_schema_asks_for_what_a_listing_form_has():
     # is a field somebody paid to generate.
     assert set(DRAFT_SCHEMA["required"]) <= set(DRAFT_SCHEMA["properties"])
     assert DRAFT_SCHEMA["properties"]["suggested_price_minor"]["type"] == "integer"
+
+
+async def test_a_recording_is_what_the_listing_is_written_from():
+    made, provider = drafter({**GOOD_DRAFT, "heard": "পাটের পাটি, ফরিদপুরে বোনা"})
+
+    drafted = await made.draft(
+        notes="", photograph=None, recording=Recording("audio/webm", b"OggS...")
+    )
+
+    assert provider.asked["recording"].media_type == "audio/webm"
+    # The instruction has to say what the audio is, or the model treats it as
+    # ambient noise attached to a question about a photograph.
+    assert "her own language" in provider.asked["instruction"]
+    # What it heard comes back, so she can check it understood her before she
+    # trusts the price.
+    assert drafted["heard"] == "পাটের পাটি, ফরিদপুরে বোনা"
+
+
+async def test_a_recording_alone_is_enough():
+    made, _ = drafter()
+
+    drafted = await made.draft(notes="", photograph=None, recording=Recording("audio/ogg", b"x"))
+
+    assert drafted["title"] == GOOD_DRAFT["title"]
+
+
+async def test_a_provider_that_cannot_hear_says_so():
+    provider = StubProvider(GOOD_DRAFT)
+    provider.accepts_audio = False
+    made = ListingDrafter(provider, StubCatalog())
+
+    # Drafting from the photograph alone would let her think everything she
+    # said had been taken into account.
+    with pytest.raises(CannotHearHer):
+        await made.draft(notes="", photograph=None, recording=Recording("audio/webm", b"x"))

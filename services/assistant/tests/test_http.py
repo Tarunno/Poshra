@@ -130,10 +130,11 @@ class StubDrafter:
     def __init__(self) -> None:
         self.seen: dict | None = None
 
-    async def draft(self, *, notes, photograph, craft_hint="", district=""):
+    async def draft(self, *, notes, photograph, recording=None, craft_hint="", district=""):
         self.seen = {
             "notes": notes,
             "photograph": photograph,
+            "recording": recording,
             "craft_hint": craft_hint,
             "district": district,
         }
@@ -145,6 +146,7 @@ class StubDrafter:
             "craft": "jute-craft",
             "suggested_price_minor": 420000,
             "price_reasoning": "Close to a mat already listed.",
+            "heard": "",
             "confidence": "high",
         }
 
@@ -217,3 +219,27 @@ def test_nothing_to_draft_from_says_so(drafting):
     )
     assert response.status_code == 400
     assert "photograph" in response.json()["detail"]
+
+
+def test_a_voice_note_reaches_the_drafter(drafting):
+    test_client, stub = drafting
+    response = test_client.post(
+        "/draft-listing",
+        # What Chrome's MediaRecorder actually produces, codec parameter and
+        # all — the parameter is not part of the type the model is told about.
+        files={"voice": ("note.webm", b"\x1aE\xdf\xa3 pretend opus", "audio/webm;codecs=opus")},
+        headers={"X-User-Id": "artisan-1"},
+    )
+
+    assert response.status_code == 200
+    assert stub.seen["recording"].media_type == "audio/webm"
+
+
+def test_a_recording_in_a_format_nothing_can_play_is_refused(drafting):
+    test_client, _ = drafting
+    response = test_client.post(
+        "/draft-listing",
+        files={"voice": ("note.amr", b"#!AMR", "audio/amr")},
+        headers={"X-User-Id": "artisan-1"},
+    )
+    assert response.status_code == 415

@@ -19,6 +19,7 @@ import httpx
 from app.llm.base import (
     Conversation,
     Photograph,
+    Recording,
     ToolCall,
     ToolResult,
     ToolSpec,
@@ -344,6 +345,10 @@ def _as_object(content: Any) -> dict[str, Any]:
 
 class GeminiProvider:
     name = "gemini"
+    # Gemini takes audio inline, in the containers a browser records: webm,
+    # ogg, mp4 and wav were all accepted against the live API before this was
+    # written, so nothing is transcoded on the way.
+    accepts_audio = True
 
     def __init__(
         self, api_key: str, models: Sequence[str], max_tokens: int, timeout: float
@@ -375,6 +380,7 @@ class GeminiProvider:
         instruction: str,
         schema: dict[str, Any],
         photograph: Photograph | None = None,
+        recording: Recording | None = None,
     ) -> dict[str, Any]:
         """One answer, in the shape the schema asks for.
 
@@ -384,6 +390,16 @@ class GeminiProvider:
         say about it, not a parser that lost it.
         """
         parts: list[dict[str, Any]] = [{"text": instruction}]
+        if recording is not None:
+            parts.insert(
+                0,
+                {
+                    "inlineData": {
+                        "mimeType": recording.media_type,
+                        "data": base64.b64encode(recording.data).decode(),
+                    }
+                },
+            )
         if photograph is not None:
             # The image goes first: the model reads it as the subject of the
             # instruction that follows rather than as an afterthought.
