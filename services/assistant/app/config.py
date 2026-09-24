@@ -22,7 +22,18 @@ class ConfigError(RuntimeError):
 PROVIDERS = {
     "gemini": (
         "GEMINI_API_KEY",
-        ("gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite"),
+        (
+            # Newest first, so the best one answers while it has quota left,
+            # and the list degrades rather than stops. The lite model is last:
+            # cheapest and fastest, but the weakest at choosing a tool, and a
+            # model that needs an extra search per turn is not cheaper.
+            "gemini-3.8-flash",
+            "gemini-3.7-flash",
+            "gemini-3.6-flash",
+            "gemini-3.5-flash",
+            "gemini-2.5-flash",
+            "gemini-3.5-flash-lite",
+        ),
     ),
     "anthropic": ("ANTHROPIC_API_KEY", ("claude-opus-5",)),
 }

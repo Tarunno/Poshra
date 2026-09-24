@@ -123,3 +123,24 @@ def test_all_resting_still_offers_the_one_that_frees_up_first():
 def test_a_rotation_needs_a_model():
     with pytest.raises(ValueError):
         ModelRotation([])
+
+
+async def test_a_model_this_key_cannot_use_costs_that_model_and_not_the_answer():
+    rotation = ModelRotation(MODELS)
+    transport, asked = scripted(
+        {
+            # A name that does not exist: a typo in a deployment's list, or a
+            # model this key was never given.
+            "first": httpx.Response(404, json={"error": {"message": "not found"}}),
+            "second": httpx.Response(200, json=answer("Two pieces.")),
+            "third": httpx.Response(200, json=answer("never reached")),
+        }
+    )
+
+    with pytest.MonkeyPatch.context() as patch:
+        turn = await conversation(rotation, transport, patch).next_turn()
+
+    # 404 is not retryable, and before this it escaped the rotation and failed
+    # the request outright — one wrong name breaking the whole assistant.
+    assert turn.text == "Two pieces."
+    assert asked == ["first", "second"]

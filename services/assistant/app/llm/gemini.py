@@ -23,6 +23,10 @@ BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 # A free tier is rate limited and a shared model has busy moments; neither is
 # an error worth failing a shopper's question over.
 RETRYABLE = {429, 500, 502, 503, 504}
+# A name this key cannot use. Not an error to fail a shopper over either: the
+# rest of the list is still good, and one wrong name in a deployment's
+# configuration should cost that model, not the assistant.
+UNKNOWN_MODEL = 404
 MAX_ATTEMPTS = 4
 BASE_BACKOFF = 2.0
 # Past this, waiting is worse than answering. A busy moment clears in a second
@@ -35,6 +39,10 @@ MAX_WAIT = 8.0
 # refused a second ago will refuse again and each attempt costs a request and
 # the latency of making it.
 MIN_COOLDOWN = 60.0
+# A model that does not exist will not exist in a minute either. Long enough
+# that a misconfigured name is paid for once, short enough that access granted
+# later is picked up without a restart.
+MISSING_COOLDOWN = 3600.0
 
 # Gemini accepts a subset of JSON Schema and rejects the rest outright, so the
 # schemas written for Anthropic are trimmed rather than sent as they are.
@@ -188,6 +196,13 @@ class GeminiConversation:
                 headers={"x-goog-api-key": self._api_key},
                 json=payload,
             )
+            if response.status_code == UNKNOWN_MODEL:
+                log.error(
+                    "gemini does not know this model",
+                    extra={"model": model, "body": response.text[:200]},
+                )
+                raise _ModelUnavailable("unknown to this key", MISSING_COOLDOWN)
+
             if response.status_code not in RETRYABLE:
                 response.raise_for_status()
                 return response.json()
