@@ -17,7 +17,9 @@ PASSWORD = "correct-horse-battery-staple"
 
 @pytest.fixture
 def artisan(db):
-    user = User.objects.create_user(email="nasima@poshra.test", password=PASSWORD, role=Role.ARTISAN)
+    user = User.objects.create_user(
+        email="nasima@poshra.test", password=PASSWORD, role=Role.ARTISAN
+    )
     return ArtisanProfile.objects.create(
         user=user, display_name="Nasima Khatun", division=Division.SYLHET, district="Sylhet"
     )

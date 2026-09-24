@@ -40,8 +40,10 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py313"
-# Django generates migrations; they are not hand-written code.
-extend-exclude = ["**/migrations/*"]
+# Django generates migrations, and protoc generates the stubs in gen/. Neither
+# is hand-written, and both are overwritten the next time they are generated,
+# so linting them only produces noise nobody can act on.
+extend-exclude = ["**/migrations/*", "gen/*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "DJ"]

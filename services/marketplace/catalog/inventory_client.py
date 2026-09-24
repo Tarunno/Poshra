@@ -17,7 +17,6 @@ from contextlib import contextmanager
 
 import grpc
 from django.conf import settings
-
 from poshra.inventory.v1 import inventory_pb2, inventory_pb2_grpc
 
 
