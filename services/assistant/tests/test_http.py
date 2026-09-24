@@ -122,3 +122,98 @@ def test_being_out_of_quota_says_wait_rather_than_broken(client, monkeypatch):
     # minute" is a different instruction from "it is down".
     assert response.status_code == 429
     assert "busy" in response.json()["detail"]
+
+
+class StubDrafter:
+    """Stands in for the model; records what the endpoint handed it."""
+
+    def __init__(self) -> None:
+        self.seen: dict | None = None
+
+    async def draft(self, *, notes, photograph, craft_hint="", district=""):
+        self.seen = {
+            "notes": notes,
+            "photograph": photograph,
+            "craft_hint": craft_hint,
+            "district": district,
+        }
+        return {
+            "title": "Jute floor mat, indigo stripe",
+            "description": "Handwoven in Faridpur.",
+            "materials": "Jute",
+            "dimensions": "",
+            "craft": "jute-craft",
+            "suggested_price_minor": 420000,
+            "price_reasoning": "Close to a mat already listed.",
+            "confidence": "high",
+        }
+
+
+@pytest.fixture
+def drafting(client):
+    test_client, _ = client
+    stub = StubDrafter()
+    app.state.drafter = stub
+    return test_client, stub
+
+
+def test_drafting_without_a_session_is_refused(drafting):
+    test_client, _ = drafting
+    response = test_client.post("/draft-listing", data={"notes": "পাটের পাটি"})
+    # Drafting costs a model call, same as asking does.
+    assert response.status_code == 401
+
+
+def test_a_photograph_and_a_few_words_come_back_as_a_listing(drafting):
+    test_client, stub = drafting
+    response = test_client.post(
+        "/draft-listing",
+        data={"notes": "পাটের পাটি, ফরিদপুরে বোনা", "craft": "jute-craft"},
+        files={"photo": ("mat.jpg", b"\xff\xd8\xff\xe0 pretend jpeg", "image/jpeg")},
+        headers={"X-User-Id": "artisan-1"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "Jute floor mat, indigo stripe"
+    assert stub.seen["photograph"].media_type == "image/jpeg"
+    assert stub.seen["craft_hint"] == "jute-craft"
+
+
+def test_a_file_that_is_not_a_photograph_is_refused(drafting):
+    test_client, _ = drafting
+    response = test_client.post(
+        "/draft-listing",
+        data={"notes": "hello"},
+        files={"photo": ("notes.pdf", b"%PDF-1.4", "application/pdf")},
+        headers={"X-User-Id": "artisan-1"},
+    )
+    # The model would be paid to look at it either way.
+    assert response.status_code == 415
+
+
+def test_a_photograph_too_large_to_be_worth_reading_is_refused(drafting):
+    from app.main import MAX_PHOTO_BYTES
+
+    test_client, _ = drafting
+    response = test_client.post(
+        "/draft-listing",
+        files={"photo": ("huge.png", b"x" * (MAX_PHOTO_BYTES + 10), "image/png")},
+        headers={"X-User-Id": "artisan-1"},
+    )
+    assert response.status_code == 413
+
+
+def test_nothing_to_draft_from_says_so(drafting):
+    test_client, stub = drafting
+
+    async def refuse(**kwargs):
+        from app.listing import NothingToDraftFrom
+
+        raise NothingToDraftFrom("nothing")
+
+    stub.draft = refuse
+    response = test_client.post(
+        "/draft-listing", data={"notes": ""}, headers={"X-User-Id": "artisan-1"}
+    )
+    assert response.status_code == 400
+    assert "photograph" in response.json()["detail"]

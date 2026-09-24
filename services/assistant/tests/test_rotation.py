@@ -8,7 +8,12 @@ import httpx
 import pytest
 
 from app.assistant import CRAFTS_TOOL, SEARCH_TOOL
-from app.llm.gemini import GeminiConversation, ModelRotation, RateLimited
+from app.llm.gemini import (
+    GeminiConversation,
+    GeminiEndpoint,
+    ModelRotation,
+    RateLimited,
+)
 
 MODELS = ["first", "second", "third"]
 
@@ -38,10 +43,8 @@ def conversation(rotation, transport, monkeypatch):
 
     monkeypatch.setattr(httpx, "AsyncClient", client)
     return GeminiConversation(
-        api_key="unused",
-        rotation=rotation,
+        endpoint=GeminiEndpoint("unused", rotation, 5.0),
         max_tokens=512,
-        timeout=5.0,
         system="be helpful",
         tools=[SEARCH_TOOL, CRAFTS_TOOL],
         messages=[{"role": "user", "content": "a gift under 5000"}],

@@ -2,12 +2,25 @@
 
 from __future__ import annotations
 
+import base64
 from collections.abc import Sequence
 from typing import Any
 
 from anthropic import AsyncAnthropic
 
-from app.llm.base import Conversation, ToolCall, ToolResult, ToolSpec, Turn
+from app.llm.base import (
+    Conversation,
+    Photograph,
+    ToolCall,
+    ToolResult,
+    ToolSpec,
+    Turn,
+)
+
+# Claude has no response-schema setting. The equivalent is a tool it is forced
+# to call: the arguments are validated against the schema for the same reason,
+# and the answer arrives as fields rather than as prose to be picked apart.
+DRAFT_TOOL = "record_listing"
 
 
 class AnthropicConversation:
@@ -108,3 +121,47 @@ class AnthropicProvider:
             tools=tools,
             messages=messages,
         )
+
+    async def structured(
+        self,
+        *,
+        system: str,
+        instruction: str,
+        schema: dict[str, Any],
+        photograph: Photograph | None = None,
+    ) -> dict[str, Any]:
+        content: list[dict[str, Any]] = []
+        if photograph is not None:
+            # First, so the instruction reads as being about this picture.
+            content.append(
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": photograph.media_type,
+                        "data": base64.b64encode(photograph.data).decode(),
+                    },
+                }
+            )
+        content.append({"type": "text", "text": instruction})
+
+        response = await self._client.messages.create(
+            model=self._model,
+            max_tokens=self._max_tokens,
+            system=system,
+            tools=[
+                {
+                    "name": DRAFT_TOOL,
+                    "description": "Record the drafted listing.",
+                    "input_schema": schema,
+                }
+            ],
+            # Not a suggestion: the only acceptable answer is the fields.
+            tool_choice={"type": "tool", "name": DRAFT_TOOL},
+            messages=[{"role": "user", "content": content}],
+        )
+
+        for block in response.content:
+            if block.type == "tool_use" and isinstance(block.input, dict):
+                return block.input
+        raise RuntimeError("claude answered without the fields it was asked for")

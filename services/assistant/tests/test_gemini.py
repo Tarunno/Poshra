@@ -8,6 +8,7 @@ from app.assistant import CRAFTS_TOOL, SEARCH_TOOL
 from app.llm.base import ToolCall, ToolResult
 from app.llm.gemini import (
     GeminiConversation,
+    GeminiEndpoint,
     ModelRotation,
     _clean_schema,
     _declaration,
@@ -16,10 +17,8 @@ from app.llm.gemini import (
 
 def conversation(**overrides):
     defaults = dict(
-        api_key="unused",
-        rotation=ModelRotation(["gemini-3.6-flash"]),
+        endpoint=GeminiEndpoint("unused", ModelRotation(["gemini-3.6-flash"]), 5.0),
         max_tokens=512,
-        timeout=5.0,
         system="be helpful",
         tools=[SEARCH_TOOL, CRAFTS_TOOL],
         messages=[{"role": "user", "content": "hello"}],

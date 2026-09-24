@@ -204,6 +204,15 @@ class Assistant:
         # worth testing here is how tool results are fed back, not the model.
         self._provider = provider or build_provider(config)
 
+    @property
+    def provider(self) -> Provider:
+        """Shared with the listing drafter: one provider, one model rotation.
+
+        Two would each learn separately which models are spent, and pay a
+        wasted request apiece to find out.
+        """
+        return self._provider
+
     async def reply(self, messages: list[dict[str, Any]], cookie: str = "") -> dict[str, Any]:
         """Answer the conversation, and report the pieces the answer rests on.
 

@@ -43,6 +43,19 @@ class ToolResult:
 
 
 @dataclass(frozen=True)
+class Photograph:
+    """An image sent to the model, as bytes rather than a URL.
+
+    A URL would make the model's host fetch whatever we named, which is an
+    SSRF engine pointed at the cluster. The bytes come from the browser, are
+    checked here, and go no further than the provider.
+    """
+
+    media_type: str
+    data: bytes
+
+
+@dataclass(frozen=True)
 class Turn:
     """One answer from the model: either it spoke, or it asked for tools."""
 
@@ -72,3 +85,20 @@ class Provider(Protocol):
         tools: Sequence[ToolSpec],
         messages: Sequence[dict[str, str]],
     ) -> Conversation: ...
+
+    async def structured(
+        self,
+        *,
+        system: str,
+        instruction: str,
+        schema: dict[str, Any],
+        photograph: Photograph | None = None,
+    ) -> dict[str, Any]:
+        """One answer, shaped by a schema rather than by hope.
+
+        Drafting a listing is not a conversation: it is one question with one
+        answer, and the answer has to be fields a form can be filled from. Both
+        providers can be told to return exactly that shape, so neither prose
+        nor a fenced code block ever has to be parsed.
+        """
+        ...
