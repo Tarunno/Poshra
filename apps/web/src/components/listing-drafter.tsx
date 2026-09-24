@@ -7,7 +7,6 @@ import { AlertCircle, ImagePlus, Sparkles, X } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { VoiceNote } from "@/components/voice-note";
 import {
   draftListingAction,
@@ -27,21 +26,25 @@ function DraftButton({ disabled }: { disabled: boolean }) {
     <Button
       type="submit"
       size="lg"
-      className="rounded-full px-7"
+      className="rounded-full px-8"
       disabled={pending || disabled}
     >
       <Sparkles className="size-4" aria-hidden />
-      {pending ? "Reading the photograph…" : "Draft the listing"}
+      {pending ? "Writing the listing…" : "Draft the listing"}
     </Button>
   );
 }
 
 /**
- * Photograph in, draft out.
+ * Speak, and get a listing back.
  *
- * Sits above the form rather than replacing it: what comes back is a first
- * attempt in the artisan's own fields, and she is the one who decides what the
- * shop sees. Nothing here saves anything.
+ * Built around the microphone rather than around a form, because the artisan
+ * this is for would not fill in a form in English. Everything else here is a
+ * way of saying the same thing differently: a photograph if the words are
+ * hard, typing if she would rather not speak.
+ *
+ * Nothing saves. What comes back fills the fields below, and she is the one
+ * who decides what the shop sees.
  */
 export function ListingDrafter({
   onDrafted,
@@ -58,6 +61,7 @@ export function ListingDrafter({
   // input inside this form, because a Blob that is not in the form is a Blob
   // a server action never receives.
   const [spoke, setSpoke] = useState(false);
+  const [typing, setTyping] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // The action returns a draft; the form below is what fills from it. Handing
@@ -75,24 +79,30 @@ export function ListingDrafter({
     });
   }
 
+  const nothingYet = !preview && !spoke && notes.trim().length === 0;
+
   return (
-    <form action={formAction} className="space-y-4">
-      <div>
-        <p className="bg-background/70 text-ink-sky inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase">
+    <form action={formAction} className="space-y-7">
+      <div className="text-center">
+        <p className="bg-background/70 text-ink-rose inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase">
           <Sparkles className="size-3.5" aria-hidden />
-          Start from a photograph
+          পসরা · say it, and it is listed
         </p>
-        <h2 className="mt-3 text-xl leading-snug font-bold tracking-tight text-balance">
-          Photograph the piece and say what it is — in Bangla if you like.
+        <h2 className="mx-auto mt-3 max-w-md text-2xl leading-snug font-bold tracking-tight text-balance">
+          Tell Poshra about the piece you made.
         </h2>
-        <p className="mt-1 text-sm opacity-70">
-          You will get a listing in English to correct. Nothing is published
-          until you save it.
+        <p className="mx-auto mt-2 max-w-sm text-sm opacity-70">
+          Speak in Bangla. You will get a listing in English to correct —
+          nothing is published until you save it.
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-[160px_1fr]">
-        <div>
+      <VoiceNote onRecorded={setSpoke} />
+
+      <div className="mx-auto max-w-md space-y-4">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3">
+          {/* The photograph is optional here: the listing takes its real
+              photographs later. This one is for the model to look at. */}
           <input
             ref={fileRef}
             type="file"
@@ -102,7 +112,7 @@ export function ListingDrafter({
             onChange={(event) => choose(event.target.files?.[0])}
           />
           {preview ? (
-            <div className="relative aspect-square overflow-hidden rounded-2xl">
+            <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl">
               <Image
                 src={preview}
                 alt=""
@@ -113,46 +123,67 @@ export function ListingDrafter({
               <button
                 type="button"
                 aria-label="Remove the photograph"
-                className="bg-background/90 absolute top-2 right-2 rounded-full p-1.5"
+                className="bg-background/90 absolute top-1 right-1 rounded-full p-1"
                 onClick={() => {
                   if (fileRef.current) fileRef.current.value = "";
                   choose(undefined);
                 }}
               >
-                <X className="size-4" aria-hidden />
+                <X className="size-3" aria-hidden />
               </button>
             </div>
           ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="rounded-full"
+              onClick={() => fileRef.current?.click()}
+            >
+              <ImagePlus className="size-4" aria-hidden />
+              Add a photograph
+            </Button>
+          )}
+
+          {preview && (
+            <p className="text-sm opacity-70">
+              Poshra will look at this while it writes.
+            </p>
+          )}
+
+          {!typing && (
             <button
               type="button"
-              onClick={() => fileRef.current?.click()}
-              className="bg-background/60 hover:bg-background flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed text-sm opacity-70 transition-colors"
+              onClick={() => setTyping(true)}
+              className="text-sm font-semibold underline-offset-4 hover:underline"
             >
-              <ImagePlus className="size-6" aria-hidden />
-              Add a photograph
+              or type it instead
             </button>
           )}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="notes">
-            What is it? Describe it in your own words.
-          </Label>
-          <textarea
-            id="notes"
-            name="notes"
-            rows={5}
-            maxLength={2000}
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            className="bg-background w-full rounded-xl border-0 p-4"
-            placeholder="পাটের পাটি, ফরিদপুরে বোনা। নীল ডোরা। প্রায় দুই সপ্তাহ লেগেছে।"
-          />
-          <VoiceNote onRecorded={setSpoke} />
-          <DraftButton
-            disabled={!preview && notes.trim().length === 0 && !spoke}
-          />
-        </div>
+        {typing && (
+          <div className="space-y-2">
+            <label htmlFor="notes" className="text-sm font-semibold">
+              What is it? Describe it in your own words.
+            </label>
+            <textarea
+              id="notes"
+              name="notes"
+              rows={4}
+              maxLength={2000}
+              autoFocus
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              className="bg-background w-full rounded-xl border-0 p-4"
+              placeholder="পাটের পাটি, ফরিদপুরে বোনা। নীল ডোরা। প্রায় দুই সপ্তাহ লেগেছে।"
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-center">
+        <DraftButton disabled={nothingYet} />
       </div>
 
       {state.error && (
@@ -163,7 +194,7 @@ export function ListingDrafter({
       )}
 
       {state.draft && (
-        <div className="bg-background/70 space-y-1 rounded-2xl p-4 text-sm">
+        <div className="bg-background/70 mx-auto max-w-md space-y-1 rounded-2xl p-4 text-sm">
           <p className="font-semibold">Filled in below — have a look.</p>
           {state.draft.heard && (
             // What it heard, in her own language. If this is wrong, nothing

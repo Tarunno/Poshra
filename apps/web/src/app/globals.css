@@ -234,6 +234,43 @@
     border-color: color-mix(in oklab, #f4f1f6 30%, transparent);
   }
 
+  /* The running stitch, turning. Poshra's answer to a glowing ring: the same
+     "something is happening here" as a pulse, in the language the rest of the
+     interface is drawn in. */
+  @keyframes stitch-turn {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .stitch-turning {
+    animation: stitch-turn 9s linear infinite;
+  }
+
+  /* A patch breathing under the microphone while it listens. */
+  @keyframes patch-breathe {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.55;
+    }
+    50% {
+      transform: scale(1.12);
+      opacity: 0.3;
+    }
+  }
+  .patch-breathing {
+    animation: patch-breathe 2.4s ease-in-out infinite;
+  }
+
+  /* Stillness is a preference, not a failure: the ring and the patch stay,
+     they simply stop moving. */
+  @media (prefers-reduced-motion: reduce) {
+    .stitch-turning,
+    .patch-breathing {
+      animation: none;
+    }
+  }
+
   /* A stitched underline for inline emphasis. */
   .stitch-underline {
     background-image: repeating-linear-gradient(

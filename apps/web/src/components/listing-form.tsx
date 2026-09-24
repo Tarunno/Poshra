@@ -83,7 +83,7 @@ export function ListingForm({
   return (
     <>
       {drafting && (
-        <div className="bg-tint-sky rounded-panel stitched mb-6 p-6 sm:p-8">
+        <div className="bg-tint-rose rounded-panel stitched mb-6 p-7 sm:p-10">
           <ListingDrafter onDrafted={fill} />
         </div>
       )}
