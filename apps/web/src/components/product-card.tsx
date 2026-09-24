@@ -10,13 +10,68 @@ export function ProductCard({
   product,
   saved = false,
   actions = false,
+  layout = "tile",
 }: {
   product: Product;
   saved?: boolean;
   /** Off by default: a card inside a chat answer is for reading, not acting. */
   actions?: boolean;
+  /**
+   * "row" is for narrow places — the assistant panel is about 380px wide, and
+   * a tile's 4:5 photograph fills the whole of it, so one suggestion pushes
+   * the next off the screen. A row gives the photograph a thumbnail and lets
+   * three pieces be read at a glance.
+   */
+  layout?: "tile" | "row";
 }) {
   const image = product.images[0];
+
+  if (layout === "row") {
+    return (
+      <article className="group">
+        <Link
+          href={`/products/${product.slug}`}
+          className="focus-visible:ring-foreground/50 hover:bg-muted/50 flex items-center gap-3 rounded-2xl p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <div className="relative size-16 shrink-0 overflow-hidden rounded-xl">
+            {image ? (
+              <Image
+                src={image.url}
+                alt={image.alt_text || product.title}
+                fill
+                sizes="64px"
+                className="object-cover"
+              />
+            ) : (
+              <CraftTile
+                craftSlug={product.craft.slug}
+                seedKey={product.slug}
+                className="size-full"
+              />
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-sm leading-snug font-semibold group-hover:underline">
+              {product.title}
+            </h3>
+            <p className="truncate text-xs opacity-70">
+              {product.artisan.display_name} ·{" "}
+              {product.origin_district || product.artisan.district}
+            </p>
+            <p className="text-sm font-semibold">
+              {formatMoney(product.price_minor, product.currency)}
+              {!product.in_stock && (
+                <span className="ml-2 text-xs font-normal opacity-60">
+                  Sold out
+                </span>
+              )}
+            </p>
+          </div>
+        </Link>
+      </article>
+    );
+  }
 
   return (
     <article className="group relative">

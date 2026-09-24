@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertCircle, ArrowUp, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ChatAnswer } from "@/components/chat-answer";
 import { Input } from "@/components/ui/input";
 import { ProductCard } from "@/components/product-card";
 import { askAssistant, type ChatTurn } from "@/lib/assistant-actions";
@@ -125,9 +126,7 @@ export function ShoppingChat({ compact = false }: { compact?: boolean }) {
               </p>
             ) : (
               <div className="space-y-5">
-                <p className="max-w-2xl text-[0.95rem] leading-relaxed whitespace-pre-wrap">
-                  {entry.content}
-                </p>
+                <ChatAnswer>{entry.content}</ChatAnswer>
                 {entry.checkoutReady && (
                   // The assistant totals a cart; paying happens on the checkout
                   // page, where the order is reviewed and the idempotency key is
@@ -139,13 +138,19 @@ export function ShoppingChat({ compact = false }: { compact?: boolean }) {
                 {entry.products && entry.products.length > 0 && (
                   <div
                     className={
+                      // Rows in the panel, tiles on the full page: the same
+                      // three suggestions, sized for the space they are in.
                       compact
-                        ? "grid grid-cols-1 gap-4"
+                        ? "-mx-1 divide-y"
                         : "grid grid-cols-2 gap-5 lg:grid-cols-3"
                     }
                   >
                     {entry.products.map((product) => (
-                      <ProductCard key={product.id} product={product} />
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        layout={compact ? "row" : "tile"}
+                      />
                     ))}
                   </div>
                 )}
