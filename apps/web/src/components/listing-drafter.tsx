@@ -8,6 +8,7 @@ import { AlertCircle, ImagePlus, Sparkles, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { VoiceNote } from "@/components/voice-note";
 import {
   draftListingAction,
   type DraftState,
@@ -53,6 +54,10 @@ export function ListingDrafter({
   );
   const [preview, setPreview] = useState<string>();
   const [notes, setNotes] = useState("");
+  // Whether there is a recording to send. The clip itself lives in a file
+  // input inside this form, because a Blob that is not in the form is a Blob
+  // a server action never receives.
+  const [spoke, setSpoke] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // The action returns a draft; the form below is what fills from it. Handing
@@ -143,7 +148,10 @@ export function ListingDrafter({
             className="bg-background w-full rounded-xl border-0 p-4"
             placeholder="পাটের পাটি, ফরিদপুরে বোনা। নীল ডোরা। প্রায় দুই সপ্তাহ লেগেছে।"
           />
-          <DraftButton disabled={!preview && notes.trim().length === 0} />
+          <VoiceNote onRecorded={setSpoke} />
+          <DraftButton
+            disabled={!preview && notes.trim().length === 0 && !spoke}
+          />
         </div>
       </div>
 
@@ -157,6 +165,13 @@ export function ListingDrafter({
       {state.draft && (
         <div className="bg-background/70 space-y-1 rounded-2xl p-4 text-sm">
           <p className="font-semibold">Filled in below — have a look.</p>
+          {state.draft.heard && (
+            // What it heard, in her own language. If this is wrong, nothing
+            // below it is worth reading.
+            <p className="opacity-80">
+              <span className="font-medium">Heard:</span> “{state.draft.heard}”
+            </p>
+          )}
           {state.draft.price_reasoning && (
             <p className="opacity-70">{state.draft.price_reasoning}</p>
           )}

@@ -16,9 +16,10 @@ const nextConfig: NextConfig = {
     serverActions: {
       // A server action's body is capped at 1MB by default, and a photograph
       // from a phone is several. Drafting a listing sends one through an
-      // action, so the cap has to clear what the assistant accepts (6MB) plus
-      // what multipart adds in boundaries and part headers.
-      bodySizeLimit: "7mb",
+      // action, together with a voice note, so the cap has to clear what the
+      // assistant accepts for both (6MB and 3MB) plus what multipart adds in
+      // boundaries and part headers.
+      bodySizeLimit: "10mb",
     },
   },
   images: {

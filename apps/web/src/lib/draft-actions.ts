@@ -22,6 +22,8 @@ export type ListingDraft = {
   craft: string;
   suggested_price_minor: number;
   price_reasoning: string;
+  /** What the model heard, in the language she spoke it. Empty if she typed. */
+  heard: string;
   confidence: "high" | "medium" | "low";
 };
 
@@ -32,17 +34,22 @@ export async function draftListingAction(
   formData: FormData,
 ): Promise<DraftState> {
   const photo = formData.get("photo");
+  const voice = formData.get("voice");
   const notes = String(formData.get("notes") ?? "").trim();
   const hasPhoto = photo instanceof File && photo.size > 0;
+  const hasVoice = voice instanceof File && voice.size > 0;
 
-  if (!hasPhoto && !notes) {
-    return { error: "Add a photograph or describe the piece in a few words." };
+  if (!hasPhoto && !hasVoice && !notes) {
+    return {
+      error: "Add a photograph, say a few words, or type a description.",
+    };
   }
 
   // Rebuilt rather than forwarded whole: the form this came from also carries
   // the listing's own fields, and none of them are the model's business.
   const outgoing = new FormData();
   if (hasPhoto) outgoing.set("photo", photo);
+  if (hasVoice) outgoing.set("voice", voice);
   if (notes) outgoing.set("notes", notes);
   const craft = String(formData.get("craft") ?? "").trim();
   const district = String(formData.get("origin_district") ?? "").trim();
