@@ -28,7 +28,10 @@ def build_provider(config) -> Provider:
         from app.llm.anthropic import AnthropicProvider
 
         return AnthropicProvider(
-            api_key=config.api_key, model=config.model, max_tokens=config.max_tokens
+            api_key=config.api_key,
+            # One key, billed by use: nothing to rotate between.
+            model=config.models[0],
+            max_tokens=config.max_tokens,
         )
 
     if config.provider == "gemini":
@@ -36,7 +39,7 @@ def build_provider(config) -> Provider:
 
         return GeminiProvider(
             api_key=config.api_key,
-            model=config.model,
+            models=config.models,
             max_tokens=config.max_tokens,
             timeout=config.llm_timeout,
         )

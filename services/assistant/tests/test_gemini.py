@@ -6,13 +6,18 @@ differences between providers actually live.
 
 from app.assistant import CRAFTS_TOOL, SEARCH_TOOL
 from app.llm.base import ToolCall, ToolResult
-from app.llm.gemini import GeminiConversation, _clean_schema, _declaration
+from app.llm.gemini import (
+    GeminiConversation,
+    ModelRotation,
+    _clean_schema,
+    _declaration,
+)
 
 
 def conversation(**overrides):
     defaults = dict(
         api_key="unused",
-        model="gemini-3.6-flash",
+        rotation=ModelRotation(["gemini-3.6-flash"]),
         max_tokens=512,
         timeout=5.0,
         system="be helpful",

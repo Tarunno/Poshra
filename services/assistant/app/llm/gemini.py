@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Sequence
 from typing import Any
 
@@ -29,6 +30,11 @@ BASE_BACKOFF = 2.0
 # spent, and holding someone's request open for that long only turns a clear
 # "try again shortly" into a page that appears to have frozen.
 MAX_WAIT = 8.0
+# How long a model is left alone once it has said no. Google's RetryInfo is
+# honoured when it asks for longer; this is the floor, because a model that
+# refused a second ago will refuse again and each attempt costs a request and
+# the latency of making it.
+MIN_COOLDOWN = 60.0
 
 # Gemini accepts a subset of JSON Schema and rejects the rest outright, so the
 # schemas written for Anthropic are trimmed rather than sent as they are.
@@ -68,7 +74,47 @@ def _declaration(tool: ToolSpec) -> dict[str, Any]:
 
 
 class RateLimited(RuntimeError):
-    """The model is busy and retrying did not clear it."""
+    """Every model is busy and retrying did not clear it."""
+
+
+class _ModelUnavailable(Exception):
+    """One model said no. Another may not."""
+
+    def __init__(self, message: str, retry_after: float) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+class ModelRotation:
+    """Which model to ask next, and which ones are still sulking.
+
+    The free tier is metered per model, so one that has spent its quota says so
+    while its neighbours are still answering. Rather than failing the shopper,
+    the request falls down the list; the model that refused is set aside for a
+    while so later requests skip it instead of re-learning it is spent.
+
+    The state is per process, on purpose. Sharing it between replicas would
+    mean Redis, a schema and a failure mode of its own, to save each replica
+    one wasted request per model per cooldown. The clock is monotonic so a
+    cooldown survives the system clock moving.
+    """
+
+    def __init__(self, models: Sequence[str]) -> None:
+        if not models:
+            raise ValueError("at least one model is required")
+        self._models = tuple(models)
+        self._resting: dict[str, float] = {}
+
+    def available(self) -> list[str]:
+        """Preference order, skipping anything still cooling off."""
+        now = time.monotonic()
+        ready = [model for model in self._models if self._resting.get(model, 0.0) <= now]
+        # All of them spent: try the one that frees up first, so a shopper gets
+        # an answer rather than a refusal the moment any quota returns.
+        return ready or [min(self._models, key=lambda m: self._resting.get(m, 0.0))]
+
+    def rest(self, model: str, seconds: float) -> None:
+        self._resting[model] = time.monotonic() + max(seconds, MIN_COOLDOWN)
 
 
 class GeminiConversation:
@@ -76,7 +122,7 @@ class GeminiConversation:
         self,
         *,
         api_key: str,
-        model: str,
+        rotation: ModelRotation,
         max_tokens: int,
         timeout: float,
         system: str,
@@ -84,7 +130,8 @@ class GeminiConversation:
         messages: Sequence[dict[str, str]],
     ) -> None:
         self._api_key = api_key
-        self._model = model
+        self._rotation = rotation
+        self._answered_by: str | None = None
         self._max_tokens = max_tokens
         self._timeout = timeout
         self._system = system
@@ -110,48 +157,69 @@ class GeminiConversation:
         return self._read(await self._post(payload))
 
     async def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Send one request, waiting out the answers that mean "not now"."""
-        backoff = BASE_BACKOFF
+        """Ask each model in turn until one answers."""
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            for attempt in range(1, MAX_ATTEMPTS + 1):
-                response = await client.post(
-                    f"{BASE_URL}/models/{self._model}:generateContent",
-                    headers={"x-goog-api-key": self._api_key},
-                    json=payload,
+            refusals: list[str] = []
+            for model in self._rotation.available():
+                try:
+                    body = await self._ask(client, model, payload)
+                except _ModelUnavailable as refusal:
+                    # Set it aside and try the next one. Nothing is waited out
+                    # here: the whole point of a second model is not waiting.
+                    self._rotation.rest(model, refusal.retry_after)
+                    refusals.append(f"{model}: {refusal}")
+                    continue
+                # The answer has to be attributed, or a change in how the
+                # assistant writes cannot be traced to which model wrote it.
+                self._answered_by = model
+                return body
+
+        log.error("every gemini model refused", extra={"refusals": refusals})
+        raise RateLimited("; ".join(refusals))
+
+    async def _ask(
+        self, client: httpx.AsyncClient, model: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """One model, waiting out the answers that mean "not just now"."""
+        backoff = BASE_BACKOFF
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            response = await client.post(
+                f"{BASE_URL}/models/{model}:generateContent",
+                headers={"x-goog-api-key": self._api_key},
+                json=payload,
+            )
+            if response.status_code not in RETRYABLE:
+                response.raise_for_status()
+                return response.json()
+
+            # Google says how long to wait when it knows; otherwise back off,
+            # because hammering a rate limit is how you stay in it.
+            wait = _retry_after(response) or backoff
+
+            if attempt == MAX_ATTEMPTS:
+                raise _ModelUnavailable(
+                    f"answered {response.status_code} {MAX_ATTEMPTS} times", wait
                 )
-                if response.status_code not in RETRYABLE:
-                    response.raise_for_status()
-                    return response.json()
+            if wait > MAX_WAIT:
+                # "Come back in 47 seconds" means the quota is spent, not that
+                # the model is momentarily busy. Waiting turns a clear "try
+                # again shortly" into a page that appears to have frozen, so
+                # the next model gets the question instead.
+                raise _ModelUnavailable(f"asked for {wait:.0f}s", wait)
 
-                if attempt == MAX_ATTEMPTS:
-                    log.error(
-                        "gemini still unavailable after retrying",
-                        extra={"status": response.status_code, "attempts": attempt},
-                    )
-                    raise RateLimited(
-                        f"the model answered {response.status_code} {MAX_ATTEMPTS} times"
-                    )
+            log.warning(
+                "gemini busy, waiting",
+                extra={
+                    "model": model,
+                    "status": response.status_code,
+                    "wait": wait,
+                    "attempt": attempt,
+                },
+            )
+            await asyncio.sleep(wait)
+            backoff *= 2
 
-                # Google says how long to wait when it knows; otherwise back
-                # off, because hammering a rate limit is how you stay in it.
-                wait = _retry_after(response) or backoff
-                if wait > MAX_WAIT:
-                    log.warning(
-                        "gemini quota exhausted, not waiting",
-                        extra={"status": response.status_code, "asked_to_wait": wait},
-                    )
-                    raise RateLimited(
-                        f"the model asked for {wait:.0f}s, which is longer than a "
-                        f"request should wait"
-                    )
-                log.warning(
-                    "gemini busy, waiting",
-                    extra={"status": response.status_code, "wait": wait, "attempt": attempt},
-                )
-                await asyncio.sleep(wait)
-                backoff *= 2
-
-        raise RateLimited("unreachable")
+        raise _ModelUnavailable("unreachable", MIN_COOLDOWN)
 
     def _read(self, body: dict[str, Any]) -> Turn:
         candidates = body.get("candidates") or []
@@ -232,9 +300,13 @@ def _as_object(content: Any) -> dict[str, Any]:
 class GeminiProvider:
     name = "gemini"
 
-    def __init__(self, api_key: str, model: str, max_tokens: int, timeout: float) -> None:
+    def __init__(
+        self, api_key: str, models: Sequence[str], max_tokens: int, timeout: float
+    ) -> None:
         self._api_key = api_key
-        self._model = model
+        # Held here, not on the conversation: a model found to be spent must
+        # stay skipped for the requests that follow, not just this one.
+        self._rotation = ModelRotation(models)
         self._max_tokens = max_tokens
         self._timeout = timeout
 
@@ -247,7 +319,7 @@ class GeminiProvider:
     ) -> Conversation:
         return GeminiConversation(
             api_key=self._api_key,
-            model=self._model,
+            rotation=self._rotation,
             max_tokens=self._max_tokens,
             timeout=self._timeout,
             system=system,

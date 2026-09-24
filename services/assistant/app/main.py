@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI):
     )
     log.info(
         "assistant ready",
-        extra={"provider": config.provider, "model": config.model},
+        extra={"provider": config.provider, "models": ", ".join(config.models)},
     )
     yield
 

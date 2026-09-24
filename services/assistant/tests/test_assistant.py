@@ -8,7 +8,7 @@ from app.llm import ToolCall, Turn
 CONFIG = Config(
     provider="gemini",
     api_key="unused",
-    model="test-model",
+    models=("test-model",),
     catalog_url="http://catalog",
     checkout_url="http://checkout",
     max_tokens=1024,

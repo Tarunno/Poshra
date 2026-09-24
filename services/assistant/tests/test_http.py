@@ -9,7 +9,7 @@ from app.main import MAX_MESSAGE_CHARS, app
 CONFIG = Config(
     provider="gemini",
     api_key="unused",
-    model="test-model",
+    models=("test-model",),
     catalog_url="http://catalog",
     checkout_url="http://checkout",
     max_tokens=512,
