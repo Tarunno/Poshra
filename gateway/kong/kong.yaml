@@ -185,42 +185,23 @@ services:
   - name: web
     url: http://web:3000
     connect_timeout: 2000
-    # A page render that takes half a minute is a page nobody waits for.
-    read_timeout: 30000
-    write_timeout: 30000
+    # Long enough for the slowest thing a server action does, which is drafting
+    # a listing: the assistant's own route allows 90s for that, and the hop in
+    # front of it has to allow more or the inner allowance is a fiction.
+    #
+    # This was briefly a second service matching POST only, so that page
+    # renders could keep a shorter leash. That is a trap: Kong ranks a method
+    # match above a longer path prefix, so a route on "/" matching POST
+    # swallowed every POST to /api and /internal — login, cart, checkout and
+    # the assistant all answered with the web tier's 404 page. One upstream,
+    # one timeout.
+    read_timeout: 120000
+    write_timeout: 120000
     retries: 0
     routes:
       - name: web-app
         paths:
           - /
-        strip_path: false
-        protocols: [http, https]
-
-  # The same upstream, reached only by POST, with the patience a server action
-  # needs. Next.js posts a server action back to the page's own URL, so it
-  # cannot be told apart by path — but it is always a POST, and a page render
-  # never is.
-  #
-  # The assistant's route below allows 90s because an answer that calls tools
-  # takes tens of seconds. That allowance was useless: the browser does not
-  # call that route, it calls this one, and this one used to give up at 30s.
-  # An answer arrived four seconds after the gateway had already returned 504.
-  # The outer timeout has to be the larger one, or the inner one is a fiction:
-  # 120s here against the assistant's 90s, so the hop that actually knows how
-  # long a model took is the one that decides to give up.
-  - name: web-actions
-    url: http://web:3000
-    connect_timeout: 2000
-    read_timeout: 120000
-    write_timeout: 120000
-    # A server action is not safe to replay: it places orders and spends model
-    # quota.
-    retries: 0
-    routes:
-      - name: web-server-actions
-        paths:
-          - /
-        methods: [POST]
         strip_path: false
         protocols: [http, https]
 
