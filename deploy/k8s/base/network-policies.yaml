@@ -164,6 +164,12 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: sales-consumer
+        # The nightly reconciler reads every listing's level out of this
+        # database before republishing it. It was allowed through Kafka's
+        # policy but not this one, so it never got as far as producing.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: stock-reconciler
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: inventory

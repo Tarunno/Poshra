@@ -12,6 +12,12 @@ spec:
   # Nightly: an event lost during the day is repaired by the next save or by
   # this, whichever comes first.
   schedule: "17 2 * * *"
+  # A schedule missed while the cluster was off is skipped rather than run at
+  # boot, where it would start while Postgres is still coming up and fail on a
+  # connection timeout. This is a nightly safety net — the next save
+  # republishes a lost level anyway — so a night it did not run is not worth a
+  # failed Job somebody has to read.
+  startingDeadlineSeconds: 600
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 2
