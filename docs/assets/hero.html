@@ -3,13 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <style>
-      /* Composition for the README hero: a laptop with the page an artisan
-         speaks a listing into, the shop in a browser window behind it, and
-         the mobile storefront on a phone in front. Three things the project
-         claims, in one picture.
-         The drafting page takes the laptop because it is the one that has to
-         be read rather than recognised: the shop is legible as a grid of
-         photographs at any size, a microphone and a sentence are not. */
+      /* Composition for the README hero, three devices with three jobs.
+         The monitor carries the shop, which is what the thing is. The
+         laptop carries the page an artisan speaks a listing into, which is
+         what makes it different — and it has to be read rather than
+         recognised, so it gets a surface nothing crops. The phone says the
+         same storefront works in a hand. */
       :root {
         --ink: #1a1523;
         --cream: #fffcf5;
@@ -43,62 +42,56 @@
 
       .stage { position: absolute; inset: 0; }
 
-      /* ---------- browser window (behind) ---------- */
-      .browser {
-        position: absolute;
-        top: 60px;
-        right: 78px;
-        width: 880px;
-        border-radius: 16px;
+      /* ---------- monitor (back) ---------- */
+      .monitor { position: absolute; top: 52px; right: 70px; width: 880px; }
+      .monitor .panel {
+        background: var(--ink);
+        border-radius: 20px;
+        /* A wider chin than bezel: what makes a monitor read as a monitor. */
+        padding: 13px 13px 42px;
+        box-shadow: 0 45px 80px -25px rgba(26, 21, 35, 0.42);
+      }
+      .monitor .screen {
+        border-radius: 8px;
         overflow: hidden;
         background: #fff;
-        box-shadow: 0 40px 80px -20px rgba(26, 21, 35, 0.35);
-        transform: rotate(1.2deg);
       }
-      .chrome {
-        height: 34px;
-        background: #f1ece4;
-        display: flex;
-        align-items: center;
-        gap: 7px;
-        padding: 0 14px;
-        border-bottom: 1px solid rgba(26, 21, 35, 0.08);
-      }
-      .dot { width: 11px; height: 11px; border-radius: 50%; }
-      .bar {
-        margin-left: 12px;
-        height: 18px;
-        flex: 1;
-        border-radius: 9px;
-        background: #fff;
-        display: flex;
-        align-items: center;
-        padding: 0 10px;
-        font-size: 10px;
-        color: rgba(26, 21, 35, 0.5);
-      }
-      /* The window shows the top of the shop; the rest of that page is more
-         of the same grid, and the laptop is in front of it anyway. */
-      .browser .shot { position: relative; overflow: hidden; height: 300px; }
-      .browser .shot img {
+      .monitor .screen img { display: block; width: 100%; }
+      .monitor .badge {
         position: absolute;
-        display: block;
-        width: 880px;
-        max-width: none;
-        left: 0;
-        top: 0;
+        bottom: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 54px;
+        height: 7px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.16);
+      }
+      .monitor .neck {
+        width: 150px;
+        height: 54px;
+        margin: 0 auto;
+        background: linear-gradient(#241e30, #17131f);
+        clip-path: polygon(16% 0, 84% 0, 100% 100%, 0 100%);
+      }
+      .monitor .foot {
+        width: 330px;
+        height: 13px;
+        margin: 0 auto;
+        border-radius: 0 0 10px 10px;
+        background: linear-gradient(#211b2c, #131019);
       }
 
-      /* ---------- laptop (main) ---------- */
-      .laptop { position: absolute; left: 70px; bottom: 96px; width: 1000px; }
+      /* ---------- laptop (front left) ---------- */
+      .laptop { position: absolute; left: 46px; bottom: 78px; width: 800px; }
       .laptop .lid {
         background: var(--ink);
-        border-radius: 22px;
-        padding: 14px 14px 18px;
+        border-radius: 20px;
+        padding: 13px 13px 17px;
         box-shadow: 0 50px 90px -25px rgba(26, 21, 35, 0.5);
       }
       .laptop .screen {
-        border-radius: 10px;
+        border-radius: 9px;
         overflow: hidden;
         background: #fff;
       }
@@ -108,45 +101,45 @@
         background: #3b3542; margin: 0 auto 8px;
       }
       .laptop .base {
-        width: 1130px;
-        margin-left: -65px;
-        height: 16px;
+        width: 910px;
+        margin-left: -55px;
+        height: 15px;
         background: linear-gradient(#2a2433, #15121c);
         border-radius: 0 0 14px 14px;
         position: relative;
       }
       .laptop .notch-base {
         position: absolute; left: 50%; transform: translateX(-50%);
-        width: 140px; height: 6px; border-radius: 0 0 8px 8px;
+        width: 130px; height: 6px; border-radius: 0 0 8px 8px;
         background: rgba(255, 255, 255, 0.14);
       }
 
-      /* ---------- phone (front) ---------- */
+      /* ---------- phone (front right) ---------- */
       .phone {
         position: absolute;
-        right: 150px;
-        bottom: 60px;
-        width: 290px;
+        right: 92px;
+        bottom: 56px;
+        width: 258px;
         background: var(--ink);
-        border-radius: 42px;
-        padding: 10px;
+        border-radius: 38px;
+        padding: 9px;
         box-shadow: 0 45px 80px -20px rgba(26, 21, 35, 0.5);
         transform: rotate(-2deg);
       }
       .phone .screen {
-        border-radius: 34px;
+        border-radius: 30px;
         overflow: hidden;
         background: #fff;
         position: relative;
       }
       .phone .screen img { display: block; width: 100%; }
       .phone .island {
-        position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-        width: 86px; height: 22px; border-radius: 12px; background: var(--ink);
+        position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
+        width: 78px; height: 20px; border-radius: 11px; background: var(--ink);
       }
 
       /* ---------- caption ---------- */
-      .caption { position: absolute; left: 78px; top: 70px; }
+      .caption { position: absolute; left: 78px; top: 76px; }
       .caption h1 {
         font-size: 44px; letter-spacing: -0.02em; color: var(--ink); font-weight: 800;
       }
@@ -162,14 +155,13 @@
         <p>Crafts from Bangladesh, sold the way they deserve.</p>
       </div>
 
-      <div class="browser">
-        <div class="chrome">
-          <span class="dot" style="background: #ff5f57"></span>
-          <span class="dot" style="background: #febc2e"></span>
-          <span class="dot" style="background: #28c840"></span>
-          <span class="bar">poshra.local/shop</span>
+      <div class="monitor">
+        <div class="panel">
+          <div class="screen"><img src="cap-shop.png" alt="" /></div>
+          <div class="badge"></div>
         </div>
-        <div class="shot"><img src="cap-shop.png" alt="" /></div>
+        <div class="neck"></div>
+        <div class="foot"></div>
       </div>
 
       <div class="laptop">
