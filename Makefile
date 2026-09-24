@@ -29,6 +29,10 @@ build: ## Build service images
 migrate: ## Apply Django migrations for marketplace (one-off container)
 	$(COMPOSE) run --rm marketplace python manage.py migrate
 
+py-check: ## Run exactly what CI runs for the Python services (lint, format, tests)
+	cd services/marketplace && uv run ruff check . && uv run ruff format --check . && uv run pytest -q
+	cd services/assistant && uv run ruff check . && uv run ruff format --check . && uv run pytest -q
+
 kong-validate: ## Validate gateway/kong/kong.yaml
 	@python3 gateway/kong/tests/no_duplicate_keys.py gateway/kong/kong.yaml
 	$(COMPOSE) run --rm --no-deps kong kong config parse /kong/kong.yaml

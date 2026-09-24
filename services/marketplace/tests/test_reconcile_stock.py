@@ -51,9 +51,11 @@ def run(monkeypatch, ledger, **options) -> str:
         yield object()
 
     monkeypatch.setattr(reconcile_stock, "channel", fake_channel)
-    monkeypatch.setattr(reconcile_stock, "on_hand", lambda stub, sku_ids, **kw: {
-        sku: ledger[sku] for sku in sku_ids if sku in ledger
-    })
+    monkeypatch.setattr(
+        reconcile_stock,
+        "on_hand",
+        lambda stub, sku_ids, **kw: {sku: ledger[sku] for sku in sku_ids if sku in ledger},
+    )
 
     out = StringIO()
     call_command("reconcile_stock", stdout=out, **options)

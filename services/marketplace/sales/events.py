@@ -134,6 +134,4 @@ def _reduce_listed_stock(product: Product, quantity: int) -> None:
     never go negative, and a listing that reads 0 is the honest answer when
     this service is not sure.
     """
-    Product.objects.filter(pk=product.pk).update(
-        stock=Greatest(F("stock") - quantity, Value(0))
-    )
+    Product.objects.filter(pk=product.pk).update(stock=Greatest(F("stock") - quantity, Value(0)))
