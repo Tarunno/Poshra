@@ -4,6 +4,7 @@ import { ArrowLeft, ImageOff, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ListingNoteForm } from "@/components/listing-note-form";
 import { StatusTag } from "@/components/oversight-board";
 import { getCurrentUser } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
@@ -117,6 +118,9 @@ export default async function MarketplaceListings({
                 <th className="px-3 py-2 text-right font-semibold">Price</th>
                 <th className="px-3 py-2 text-right font-semibold">Stock</th>
                 <th className="px-3 py-2 text-left font-semibold">Status</th>
+                <th className="px-3 py-2 text-left font-semibold">
+                  <span className="sr-only">Say something about it</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -153,6 +157,9 @@ export default async function MarketplaceListings({
                   </td>
                   <td className="px-3 py-3">
                     <StatusTag status={piece.status} />
+                  </td>
+                  <td className="px-3 py-3">
+                    <ListingNoteForm listingId={piece.id} title={piece.title} />
                   </td>
                 </tr>
               ))}

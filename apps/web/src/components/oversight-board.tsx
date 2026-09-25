@@ -1,7 +1,14 @@
 import Link from "next/link";
-import { AlertTriangle, ImageOff, PackageX, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  ImageOff,
+  MessageSquareWarning,
+  PackageX,
+  Users,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Ranking, TakingsChart } from "@/components/takings-chart";
 import { formatMoney } from "@/lib/format";
 import type { Overview, OversightListing } from "@/lib/oversight";
 
@@ -80,6 +87,12 @@ export function OversightBoard({ overview }: { overview: Overview }) {
             tint={listings.out_of_stock > 0 ? "bg-tint-saffron" : ""}
             icon={<PackageX className="size-3.5" aria-hidden />}
           />
+          <Count
+            label="Notes waiting on an artisan"
+            value={overview.open_notes}
+            tint={overview.open_notes > 0 ? "bg-tint-lilac" : ""}
+            icon={<MessageSquareWarning className="size-3.5" aria-hidden />}
+          />
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-4">
@@ -103,6 +116,8 @@ export function OversightBoard({ overview }: { overview: Overview }) {
               value={formatMoney(sales.takings_minor, "BDT")}
             />
           </div>
+
+          <TakingsChart daily={overview.daily} />
 
           <h3 className="mt-6 text-xs font-semibold tracking-wide uppercase opacity-55">
             Latest sales
@@ -141,6 +156,19 @@ export function OversightBoard({ overview }: { overview: Overview }) {
             <Count label="Buyers" value={people.buyers} />
             <Count label="Joined recently" value={people.joined_recently} />
           </div>
+
+          <h3 className="mt-6 text-xs font-semibold tracking-wide uppercase opacity-55">
+            Selling most
+          </h3>
+          <Ranking
+            rows={overview.top_artisans}
+            empty="Nobody has sold anything yet."
+          />
+
+          <h3 className="mt-6 text-xs font-semibold tracking-wide uppercase opacity-55">
+            By craft
+          </h3>
+          <Ranking rows={overview.top_crafts} empty="No sales to rank." />
 
           <h3 className="mt-6 text-xs font-semibold tracking-wide uppercase opacity-55">
             Newest listings

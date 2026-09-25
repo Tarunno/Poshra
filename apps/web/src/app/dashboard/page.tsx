@@ -10,11 +10,12 @@ import { ActivityFeed } from "@/components/activity-feed";
 import { OrderSummary } from "@/components/order-summary";
 import { SalesChart } from "@/components/sales-chart";
 import { WorkshopPiece } from "@/components/workshop-piece";
+import { ArtisanNotes } from "@/components/artisan-notes";
 import { OversightBoard } from "@/components/oversight-board";
 import { getCurrentUser } from "@/lib/api";
 import { listMyProducts } from "@/lib/catalog";
 import { listOrders } from "@/lib/checkout";
-import { getOverview } from "@/lib/oversight";
+import { getOverview, listMyNotes } from "@/lib/oversight";
 import { getSalesSummary } from "@/lib/sales";
 import { formatMoney } from "@/lib/format";
 
@@ -103,10 +104,14 @@ export default async function DashboardPage() {
 
   // Independent fetches, so they run together: awaiting them in sequence would
   // add the slower one to the faster one for no reason.
-  const [orders, listings, sales] = await Promise.all([
+  const [orders, listings, sales, notes] = await Promise.all([
     listOrders(),
     artisan ? listMyProducts() : Promise.resolve([]),
     artisan ? getSalesSummary() : Promise.resolve(null),
+    // What an administrator has asked of them. Above their own work, because
+    // a note they do not see is a listing quietly out of the shop and an
+    // artisan wondering why nothing sells.
+    artisan ? listMyNotes() : Promise.resolve([]),
   ]);
 
   const spent = orders.reduce((total, order) => total + order.total_minor, 0);
@@ -145,6 +150,10 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* First, because it is the only thing on this page somebody else is
+          waiting on. */}
+      <ArtisanNotes notes={notes} />
+
       <section className="bg-tint-saffron rounded-panel stitched relative overflow-hidden p-7 sm:p-9">
         <p className="text-xs font-semibold tracking-wide uppercase opacity-60">
           {artisan ? "Your workshop" : "Your account"}
