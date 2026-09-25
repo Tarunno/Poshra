@@ -1,0 +1,109 @@
+# পাহারা — the watch.
+#
+# The same image as the assistant, running a different application. They share
+# the model seam, the rotation and the retries — one implementation, tested
+# once — and share nothing else: different route, different tools, different
+# ingress policy, different budget.
+#
+# The separation is honest about where it is enforced. Ingress is: only the
+# gateway reaches either, and each has its own route. Egress is not — nothing
+# in this namespace restricts outbound traffic, so what keeps the shopper's
+# assistant out of the telemetry is that it has no client for it and no URL to
+# use, not a rule that would stop it. Enforcing that too would mean egress
+# policies for every service here, which is the right next step and is not
+# this one.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pahara
+spec:
+  selector:
+    app.kubernetes.io/name: pahara
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pahara
+spec:
+  # One, and only when somebody asks. An agent that investigates on a timer
+  # is an agent billing for mornings when nothing happened.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pahara
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pahara
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: pahara
+          image: ghcr.io/tarunno/poshra/assistant:dev
+          command: ["uvicorn", "app.pahara.main:app"]
+          args: ["--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+          env:
+            - name: LLM_PROVIDER
+              value: gemini
+            - name: GEMINI_API_KEY
+              valueFrom: { secretKeyRef: { name: poshra-llm, key: GEMINI_API_KEY } }
+            # Read-only, all three. Pahara can see what happened and cannot
+            # change what happens next.
+            - name: TEMPO_URL
+              value: http://tempo.observability.svc.cluster.local:3200
+            - name: LOKI_URL
+              value: http://loki.observability.svc.cluster.local:3100
+            - name: PROMETHEUS_URL
+              value: http://prometheus.observability.svc.cluster.local:9090
+            # An investigation takes more steps than a shopper's question, so
+            # it is given longer — still well inside the gateway's patience.
+            - name: PAHARA_BUDGET
+              value: "60"
+            # Required by the shared configuration even though Pahara has no
+            # catalogue and no cart: it builds the same provider from it.
+            - name: CATALOG_URL
+              value: http://kong-proxy/internal/marketplace
+            - name: CHECKOUT_URL
+              value: http://kong-proxy/api/checkout
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observability.svc.cluster.local:4317
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8000
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            # Never asks the model or the backends: an outage in either must
+            # not restart the pod.
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 50m, memory: 192Mi }
+            limits: { memory: 384Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 32Mi }

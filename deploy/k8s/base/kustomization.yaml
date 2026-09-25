@@ -17,6 +17,7 @@ resources:
   - redis.yaml
   - marketplace.yaml
   - assistant.yaml
+  - pahara.yaml
   - sales-consumer.yaml
   - stock-reconciler.yaml
   - inventory.yaml

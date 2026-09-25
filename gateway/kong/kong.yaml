@@ -146,6 +146,41 @@ services:
               limit_by: header
               header_name: X-User-Id
 
+  # পাহারা, the watch: an agent that reads the cluster's own telemetry. Behind
+  # the same identity check as everything else, because reading the traces
+  # means reading what every shopper did.
+  - name: pahara
+    url: http://pahara:8000
+    connect_timeout: 2000
+    # An investigation is several model calls and several queries over an hour
+    # of traces. Its own budget stops at 60s; this leaves room to answer.
+    read_timeout: 90000
+    write_timeout: 90000
+    retries: 0
+    routes:
+      - name: pahara-api
+        paths:
+          - /api/pahara
+        strip_path: true
+        protocols: [http, https]
+        plugins:
+          - name: poshra-identity
+            config:
+              public_key_b64: "{vault://env/poshra-jwt-public-key}"
+              issuer: poshra-marketplace
+              audience: poshra-api
+              access_cookie: poshra_at
+              require_authentication: true
+          - name: poshra-leaky-bucket
+            config:
+              # Tighter than the shopper's: one question a minute, three in a
+              # burst. An operator asking repeatedly during an incident is
+              # exactly when a runaway bill is easiest to miss.
+              rate: 0.0167
+              burst: 3
+              limit_by: header
+              header_name: X-User-Id
+
   # Cart and orders. Every endpoint here needs a buyer, so the identity plugin
   # is set to require authentication rather than allow anonymous browsing.
   - name: checkout
