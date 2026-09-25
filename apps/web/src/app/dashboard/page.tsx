@@ -78,17 +78,30 @@ export default async function DashboardPage() {
               The whole marketplace.
             </h1>
           </div>
-          <Button
-            asChild
-            variant="secondary"
-            size="sm"
-            className="rounded-full"
-          >
-            <Link href="/dashboard/marketplace">
-              Every listing
-              <ArrowUpRight className="size-4" aria-hidden />
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              asChild
+              variant="secondary"
+              size="sm"
+              className="rounded-full"
+            >
+              <Link href="/dashboard/support">
+                Look up an order
+                <ArrowUpRight className="size-4" aria-hidden />
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="secondary"
+              size="sm"
+              className="rounded-full"
+            >
+              <Link href="/dashboard/marketplace">
+                Every listing
+                <ArrowUpRight className="size-4" aria-hidden />
+              </Link>
+            </Button>
+          </div>
         </div>
 
         {overview ? (
