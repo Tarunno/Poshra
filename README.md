@@ -49,7 +49,7 @@ Nine services behind an API gateway on a three-node Kubernetes cluster, deployed
 with all three observability signals joined up.
 
 <p align="center">
-  <img src="docs/assets/cover-observability.png" alt="A Grafana trace from Kong through checkout into the Kafka consumers, the Hubble service map, and Argo CD with both applications healthy" width="960">
+  <img src="docs/assets/cover-observability.png" alt="A Grafana trace from Kong through checkout into the Kafka consumers, the Hubble service map, a rate-errors-duration dashboard, and Argo CD with three applications synced" width="960">
 </p>
 
 One trace runs from the gateway to the database **and across Kafka into two languages**: the

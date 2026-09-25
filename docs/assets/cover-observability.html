@@ -3,19 +3,26 @@
   body { background:
     radial-gradient(1200px 700px at 78% 12%, var(--mint) 0%, transparent 60%),
     radial-gradient(1000px 620px at 6% 90%, var(--rose) 0%, transparent 62%), var(--sky); }
-  .laptop { left:40px; bottom:104px; width:900px; }
+
+  /* The trace takes the laptop: it is the one that has to be read rather than
+     recognised. The other three are recognisable at a glance — a map, a
+     dashboard, two green ticks — so they stack down the side. */
+  .laptop { left:36px; bottom:84px; width:900px; }
   .laptop .base { width:1010px; margin-left:-55px; }
-  .b1 { top:66px; right:52px; width:860px; transform:rotate(1.4deg); }
+
+  .b1 { top:52px; right:50px; width:560px; transform:rotate(1.2deg); }
+  .b2 { top:345px; right:78px; width:560px; transform:rotate(-1.1deg); }
   /* argo: the top 580px of a 1492x738 capture — below the cards is empty page */
-  .b2 { bottom:84px; right:52px; width:600px; transform:rotate(-1.6deg); }
-  .b2 .crop { height:233px; }
-  .b2 .crop img { width:600px; left:0; top:0; }
+  .b3 { top:640px; right:50px; width:560px; transform:rotate(1.4deg); }
+  .b3 .crop { height:218px; }
+  .b3 .crop img { width:560px; left:0; top:0; }
 </style></head><body>
   <div class="label">
     <div class="eyebrow">পসরা · Poshra</div>
     <h2>One request, end to end.</h2>
-    <p>A single trace from the gateway through checkout into the Kafka consumers, a service
-       map drawn from real traffic, and a cluster that only changes through git.</p>
+    <p>A single trace from the gateway through checkout into the Kafka consumers,
+       a service map drawn from real traffic, rate and errors derived from the
+       traces themselves, and a cluster that only changes through git.</p>
   </div>
 
   <div class="browser b1">
@@ -24,6 +31,11 @@
   </div>
 
   <div class="browser b2">
+    <div class="chrome"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="bar">grafana.poshra.local/d/poshra-red</span></div>
+    <img class="shot" src="cap-dashboard-red.png" alt="">
+  </div>
+
+  <div class="browser b3">
     <div class="chrome"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="bar">argocd.poshra.local/applications</span></div>
     <div class="crop"><img src="cap-argocd.png" alt=""></div>
   </div>
