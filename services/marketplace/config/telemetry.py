@@ -17,7 +17,22 @@ import os
 log = logging.getLogger(__name__)
 
 
-def configure_tracing(service: str) -> None:
+# Liveness and readiness are asked every few seconds by kubelet and answer
+# without touching anything. Traced, they would be most of what the backend
+# stores and none of what anybody looks at.
+UNTRACED = "healthz,readyz"
+
+
+def configure_tracing(service: str, *, django: bool = False) -> None:
+    """Start tracing for one process.
+
+    `django=True` also turns every request into a span. Call it from wsgi.py
+    rather than from settings: gunicorn here runs without --preload, so the
+    application is imported inside each worker, and a span processor started
+    there belongs to the process that will actually use it. Started before the
+    fork instead, its exporter thread does not survive into the workers, which
+    is the shape of most "OpenTelemetry does not work under gunicorn" reports.
+    """
     endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
     if not endpoint:
         log.info("tracing is off", extra={"reason": "OTEL_EXPORTER_OTLP_ENDPOINT unset"})
@@ -40,6 +55,17 @@ def configure_tracing(service: str) -> None:
 
         PsycopgInstrumentor().instrument(enable_commenter=False)
 
-        log.info("tracing on", extra={"service": service, "collector": endpoint})
+        if django:
+            # The request span, with the traceparent Kong sent as its parent —
+            # which is what makes a trace that starts at the gateway continue
+            # here instead of starting again.
+            from opentelemetry.instrumentation.django import DjangoInstrumentor
+
+            DjangoInstrumentor().instrument(excluded_urls=UNTRACED)
+
+        log.info(
+            "tracing on",
+            extra={"service": service, "collector": endpoint, "requests": django},
+        )
     except Exception as error:  # noqa: BLE001 — telemetry must not stop the service
         log.error("could not start tracing", extra={"error": str(error)})

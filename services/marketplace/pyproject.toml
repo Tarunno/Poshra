@@ -21,6 +21,9 @@ dependencies = [
     "opentelemetry-sdk>=1.30",
     "opentelemetry-exporter-otlp-proto-grpc>=1.30",
     "opentelemetry-instrumentation-psycopg>=0.51b0",
+    # Turns every request into a span, with the gateway's traceparent as its
+    # parent. Without it this service is a gap in the middle of every trace.
+    "opentelemetry-instrumentation-django>=0.51b0",
 ]
 
 [dependency-groups]

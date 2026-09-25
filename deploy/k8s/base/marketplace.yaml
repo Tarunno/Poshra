@@ -62,6 +62,13 @@ spec:
               valueFrom: { secretKeyRef: { name: poshra-media, key: MEDIA_ACCESS_KEY } }
             - name: MEDIA_SECRET_KEY
               valueFrom: { secretKeyRef: { name: poshra-media, key: MEDIA_SECRET_KEY } }
+            # The busiest service in the cluster, and until now the one gap in
+            # every trace: the gateway's span ended and the next one anybody
+            # could see was a database call from somewhere else.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observability.svc.cluster.local:4317
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
           ports:
             - name: http
               containerPort: 8000
