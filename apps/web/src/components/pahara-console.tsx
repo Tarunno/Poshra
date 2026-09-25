@@ -115,37 +115,41 @@ export function PaharaConsole({ grafanaUrl }: { grafanaUrl: string }) {
                 : `What it looked at · ${state.looks}`}
             </p>
             {state.looked_at.length > 0 && (
-              <ol className="mt-3 space-y-2 text-sm">
+              <ol className="mt-3 space-y-3 text-sm">
                 {state.looked_at.map((look, index) => {
                   const href = evidence(look, grafanaUrl);
                   const detail = look.trace_id ?? look.query ?? "";
                   return (
-                    <li
-                      key={index}
-                      className="flex flex-wrap items-baseline gap-2"
-                    >
-                      <span className="font-mono text-xs font-semibold opacity-70">
-                        {look.tool}
-                      </span>
-                      {href ? (
-                        <a
-                          href={href}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-mono text-xs underline underline-offset-4"
-                        >
-                          {detail}
-                        </a>
-                      ) : (
-                        <code className="bg-muted rounded px-1.5 py-0.5 text-xs">
-                          {detail}
-                        </code>
-                      )}
-                      {look.since && (
-                        <span className="text-xs opacity-50">
-                          over {look.since}
+                    <li key={index} className="space-y-1">
+                      {/* What it was checking, in words. The query underneath
+                          is the evidence; this is what somebody reading at
+                          speed needs, and PromQL is not an explanation. */}
+                      <p className="flex flex-wrap items-baseline gap-2">
+                        <span aria-hidden className="opacity-40">
+                          {index + 1}.
                         </span>
-                      )}
+                        <span>{look.why ?? look.tool.replace(/_/g, " ")}</span>
+                        {look.since && (
+                          <span className="text-xs opacity-50">
+                            · over {look.since}
+                          </span>
+                        )}
+                      </p>
+                      {detail &&
+                        (href ? (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="ml-5 block font-mono text-xs break-all underline underline-offset-4 opacity-60"
+                          >
+                            {detail}
+                          </a>
+                        ) : (
+                          <code className="bg-muted ml-5 block rounded px-1.5 py-1 font-mono text-xs break-all opacity-70">
+                            {detail}
+                          </code>
+                        ))}
                     </li>
                   );
                 })}
