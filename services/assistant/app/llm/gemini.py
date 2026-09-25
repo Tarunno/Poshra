@@ -105,11 +105,19 @@ class RateLimited(RuntimeError):
 
 
 class _ModelUnavailable(Exception):
-    """One model said no. Another may not."""
+    """One model said no. Another may not.
 
-    def __init__(self, message: str, retry_after: float) -> None:
+    `quota` separates the two reasons that matter. Out of quota is a fact
+    about the next few minutes, so the model is set aside. Busy is a fact
+    about this second — sidelining a model for a minute over a 503 takes it
+    out of the fleet for the rest of an investigation, which is how a run ends
+    up on its fifth-choice model with no time left to answer.
+    """
+
+    def __init__(self, message: str, retry_after: float, *, quota: bool) -> None:
         super().__init__(message)
         self.retry_after = retry_after
+        self.quota = quota
 
 
 class ModelRotation:
@@ -161,32 +169,55 @@ class GeminiEndpoint:
         self.answered_by: str | None = None
 
     async def generate(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Ask each model in turn until one answers."""
+        """Ask each model in turn until one answers.
+
+        Breadth before patience. The first pass asks every model once and
+        waits for none of them: another model costs one round trip, while
+        waiting out a busy one costs two seconds and then four. Only when the
+        whole list has refused does the second pass start backing off.
+        """
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             refusals: list[str] = []
-            for model in self._rotation.available():
-                try:
-                    body = await self._ask(client, model, payload)
-                except _ModelUnavailable as refusal:
-                    # Set it aside and try the next one. Nothing is waited out
-                    # here: the whole point of a second model is not waiting.
-                    self._rotation.rest(model, refusal.retry_after)
-                    refusals.append(f"{model}: {refusal}")
-                    continue
-                # The answer has to be attributed, or a change in how the
-                # assistant writes cannot be traced to which model wrote it.
-                self.answered_by = model
-                return body
+            # Models that said "out of quota" during this call. Asking one of
+            # them again on the patient pass cannot help: a spent quota is not
+            # a busy moment, and the request costs as much as a useful one.
+            spent: set[str] = set()
+            for attempts in (1, MAX_ATTEMPTS):
+                for model in self._rotation.available():
+                    if model in spent:
+                        continue
+                    try:
+                        body = await self._ask(client, model, payload, attempts)
+                    except _ModelUnavailable as refusal:
+                        # Only a spent quota is set aside. A busy model is
+                        # still a model, and the next request may land fine.
+                        if refusal.quota:
+                            self._rotation.rest(model, refusal.retry_after)
+                            spent.add(model)
+                        refusals.append(f"{model}: {refusal}")
+                        continue
+                    # The answer has to be attributed, or a change in how the
+                    # assistant writes cannot be traced to which model wrote it.
+                    self.answered_by = model
+                    return body
 
         log.error("every gemini model refused", extra={"refusals": refusals})
         raise RateLimited("; ".join(refusals))
 
     async def _ask(
-        self, client: httpx.AsyncClient, model: str, payload: dict[str, Any]
+        self,
+        client: httpx.AsyncClient,
+        model: str,
+        payload: dict[str, Any],
+        attempts: int = MAX_ATTEMPTS,
     ) -> dict[str, Any]:
-        """One model, waiting out the answers that mean "not just now"."""
+        """One model, waiting out the answers that mean "not just now".
+
+        With `attempts` of one it waits for nothing: that is the pass that is
+        looking for a model which can answer now rather than soon.
+        """
         backoff = BASE_BACKOFF
-        for attempt in range(1, MAX_ATTEMPTS + 1):
+        for attempt in range(1, attempts + 1):
             response = await client.post(
                 f"{BASE_URL}/models/{model}:generateContent",
                 headers={"x-goog-api-key": self._api_key},
@@ -197,7 +228,7 @@ class GeminiEndpoint:
                     "gemini does not know this model",
                     extra={"model": model, "body": response.text[:200]},
                 )
-                raise _ModelUnavailable("unknown to this key", MISSING_COOLDOWN)
+                raise _ModelUnavailable("unknown to this key", MISSING_COOLDOWN, quota=True)
 
             if response.status_code not in RETRYABLE:
                 response.raise_for_status()
@@ -206,17 +237,20 @@ class GeminiEndpoint:
             # Google says how long to wait when it knows; otherwise back off,
             # because hammering a rate limit is how you stay in it.
             wait = _retry_after(response) or backoff
+            # 429 is a statement about the next few minutes; 5xx is one about
+            # this second, and the two deserve different treatment.
+            spent = response.status_code == 429
 
-            if attempt == MAX_ATTEMPTS:
+            if attempt == attempts:
                 raise _ModelUnavailable(
-                    f"answered {response.status_code} {MAX_ATTEMPTS} times", wait
+                    f"answered {response.status_code} {attempts} times", wait, quota=spent
                 )
-            if wait > MAX_WAIT:
+            if spent and wait > MAX_WAIT:
                 # "Come back in 47 seconds" means the quota is spent, not that
                 # the model is momentarily busy. Waiting turns a clear "try
                 # again shortly" into a page that appears to have frozen, so
                 # the next model gets the question instead.
-                raise _ModelUnavailable(f"asked for {wait:.0f}s", wait)
+                raise _ModelUnavailable(f"asked for {wait:.0f}s", wait, quota=True)
 
             log.warning(
                 "gemini busy, waiting",
@@ -230,7 +264,7 @@ class GeminiEndpoint:
             await asyncio.sleep(wait)
             backoff *= 2
 
-        raise _ModelUnavailable("unreachable", MIN_COOLDOWN)
+        raise _ModelUnavailable("unreachable", MIN_COOLDOWN, quota=False)
 
 
 class GeminiConversation:

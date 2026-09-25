@@ -4,6 +4,8 @@ No network: httpx is driven by a transport that answers from a script, so the
 quota these test is nobody's.
 """
 
+import asyncio
+
 import httpx
 import pytest
 
@@ -147,3 +149,47 @@ async def test_a_model_this_key_cannot_use_costs_that_model_and_not_the_answer()
     # the request outright — one wrong name breaking the whole assistant.
     assert turn.text == "Two pieces."
     assert asked == ["first", "second"]
+
+
+BUSY = httpx.Response(503, text="the model is busy")
+
+
+async def test_a_busy_model_is_not_sidelined():
+    rotation = ModelRotation(MODELS)
+    transport, asked = scripted(
+        {
+            "first": BUSY,
+            "second": httpx.Response(200, json=answer("Two pieces.")),
+            "third": httpx.Response(200, json=answer("never reached")),
+        }
+    )
+
+    with pytest.MonkeyPatch.context() as patch:
+        await conversation(rotation, transport, patch).next_turn()
+
+    # 503 says "not this second"; 429 says "not for a while". Resting a busy
+    # model for a minute takes it out of the fleet for a whole investigation,
+    # which is how a run ends up on its fifth choice with no time to answer.
+    assert rotation.available() == MODELS
+
+
+async def test_the_first_pass_waits_for_nobody():
+    rotation = ModelRotation(MODELS)
+    transport, asked = scripted(
+        {
+            "first": BUSY,
+            "second": BUSY,
+            "third": httpx.Response(200, json=answer("Two pieces.")),
+        }
+    )
+
+    started = asyncio.get_running_loop().time()
+    with pytest.MonkeyPatch.context() as patch:
+        turn = await conversation(rotation, transport, patch).next_turn()
+    elapsed = asyncio.get_running_loop().time() - started
+
+    assert turn.text == "Two pieces."
+    assert asked == ["first", "second", "third"]
+    # Backing off twice before trying a neighbour would have cost six seconds.
+    # Another model costs one round trip.
+    assert elapsed < 0.5
