@@ -5,6 +5,25 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: grafana-dashboard-provider
+  namespace: observability
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: poshra
+        type: file
+        # Editable in the UI for the length of a session, and reset on the next
+        # sync: a dashboard is code here, and a change that matters belongs in
+        # the commit that caused it.
+        allowUiUpdates: false
+        options:
+          path: /var/lib/grafana/dashboards
+          foldersFromFilesStructure: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: grafana-datasources
   namespace: observability
 data:
@@ -136,11 +155,21 @@ spec:
           volumeMounts:
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
             - name: data
               mountPath: /var/lib/grafana
       volumes:
         - name: datasources
           configMap: { name: grafana-datasources }
+        - name: dashboard-provider
+          configMap: { name: grafana-dashboard-provider }
+        # The dashboards themselves, from git. A dashboard clicked together in
+        # the UI lives in one person's browser history and dies with the pod.
+        - name: dashboards
+          configMap: { name: grafana-dashboards }
         # Dashboards are provisioned, so nothing here needs to survive a
         # restart; this is just somewhere writable.
         - name: data

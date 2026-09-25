@@ -17,3 +17,11 @@ resources:
   - otel-collector.yaml
   - log-collector.yaml
   - grafana.yaml
+
+configMapGenerator:
+  # The dashboards are files in git, mounted where the provider looks. The
+  # name hash means a changed dashboard rolls Grafana, which is how a change
+  # committed here reaches the screen without anybody clicking import.
+  - name: grafana-dashboards
+    files:
+      - dashboards/red.json
