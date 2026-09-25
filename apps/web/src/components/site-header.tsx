@@ -2,8 +2,10 @@ import Link from "next/link";
 import {
   LayoutDashboard,
   LogIn,
+  ShieldCheck,
   ShoppingBag,
   Store,
+  Telescope,
   UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -60,6 +62,30 @@ export function SiteHeader({
                   <MakersHand className="size-3.5" />
                   Artisan
                 </Badge>
+              )}
+              {user.role === "admin" && (
+                <Badge
+                  variant="secondary"
+                  className="bg-tint-mint hidden items-center gap-1 rounded-full sm:inline-flex"
+                >
+                  <ShieldCheck className="size-3.5" aria-hidden />
+                  Admin
+                </Badge>
+              )}
+              {/* পাহারা, the watch. Only an admin may ask it, and only an
+                  admin is shown the way there. */}
+              {user.role === "admin" && (
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full"
+                >
+                  <Link href="/watch">
+                    <Telescope className="size-4" aria-hidden />
+                    <span className="hidden sm:inline">Pahara</span>
+                  </Link>
+                </Button>
               )}
               <Button
                 asChild
