@@ -3,6 +3,16 @@
 # A PreSync hook, so the buckets are there before either starts rather than
 # after the first crash loop. It is idempotent, which is what lets it run on
 # every sync without thinking about it.
+#
+# It used to run minio/mc, pinned to a digest-dated tag. quay.io now answers
+# 401 for that whole repository, so the pull failed, the hook never completed,
+# and every sync of this stack queued behind it — a dashboard committed hours
+# earlier simply never arrived, with nothing in the app's status but "waiting
+# for hook". A pinned tag protects you from an image changing underneath you.
+# It does not protect you from the image being taken away.
+#
+# The AWS CLI does the same job against the same S3 API, and is published
+# somewhere with more at stake in staying reachable.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -25,26 +35,40 @@ spec:
         runAsGroup: 10001
         seccompProfile: { type: RuntimeDefault }
       containers:
-        - name: mc
-          image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+        - name: buckets
+          image: amazon/aws-cli:2.27.49
           command:
             - sh
             - -c
             - |
               set -e
-              mc alias set store http://minio.poshra.svc.cluster.local:9000 \
-                "$MEDIA_ACCESS_KEY" "$MEDIA_SECRET_KEY"
-              mc mb --ignore-existing store/loki
-              mc mb --ignore-existing store/tempo
+              endpoint=http://minio.poshra.svc.cluster.local:9000
+              for bucket in loki tempo; do
+                # Already there is success: this runs on every sync, and a
+                # hook that fails the second time it runs is a hook that
+                # blocks every deploy after the first.
+                if aws --endpoint-url "$endpoint" s3api head-bucket --bucket "$bucket" 2>/dev/null; then
+                  echo "$bucket is already there"
+                else
+                  aws --endpoint-url "$endpoint" s3api create-bucket --bucket "$bucket"
+                  echo "$bucket created"
+                fi
+              done
               echo "buckets ready"
           env:
-            - name: MEDIA_ACCESS_KEY
+            - name: AWS_ACCESS_KEY_ID
               valueFrom: { secretKeyRef: { name: minio-credentials, key: MEDIA_ACCESS_KEY } }
-            - name: MEDIA_SECRET_KEY
+            - name: AWS_SECRET_ACCESS_KEY
               valueFrom: { secretKeyRef: { name: minio-credentials, key: MEDIA_SECRET_KEY } }
-            # mc writes its config somewhere; the root filesystem is read-only.
-            - name: MC_CONFIG_DIR
-              value: /tmp/mc
+            # MinIO ignores the region but the CLI refuses to sign without one.
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1
+            # The CLI writes its cache somewhere, and the root filesystem here
+            # is read-only.
+            - name: AWS_CONFIG_FILE
+              value: /tmp/aws-config
+            - name: HOME
+              value: /tmp
           resources:
             requests: { cpu: 25m, memory: 64Mi }
             limits: { memory: 128Mi }
