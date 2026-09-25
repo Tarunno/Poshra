@@ -226,3 +226,56 @@ async def test_it_stops_looking_eventually(observatory):
     # Looking costs time and the model calling itself in circles costs money.
     assert answered["answer"] == LOOKED_ENOUGH
     assert answered["looks"] == 3
+
+
+# --- who is allowed to ask -----------------------------------------------------
+
+
+@pytest.fixture
+def api(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.pahara.main import app
+
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setenv("CATALOG_URL", "http://catalog")
+    monkeypatch.setenv("CHECKOUT_URL", "http://checkout")
+    monkeypatch.setenv("TEMPO_URL", TEMPO)
+    monkeypatch.setenv("LOKI_URL", LOKI)
+    monkeypatch.setenv("PROMETHEUS_URL", PROM)
+
+    class Answers:
+        async def explain(self, question):
+            return {"answer": "nothing is on fire.", "looked_at": [], "looks": 0}
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        app.state.pahara = Answers()
+        yield client
+
+
+QUESTION = {"question": "is anything broken?"}
+
+
+def test_a_signed_out_visitor_is_turned_away(api):
+    assert api.post("/explain", json=QUESTION).status_code == 401
+
+
+@pytest.mark.parametrize("role", ["buyer", "artisan", "", "ADMINISTRATOR"])
+def test_only_an_admin_may_read_the_cluster(api, role):
+    # An artisan reading their own sales is one thing; reading the traces is
+    # reading what every shopper did while they were paying.
+    response = api.post(
+        "/explain", json=QUESTION, headers={"X-User-Id": "someone", "X-User-Role": role}
+    )
+    assert response.status_code == 403
+    assert "admin" in response.json()["detail"]
+
+
+@pytest.mark.parametrize("role", ["admin", "ADMIN", " Admin "])
+def test_an_admin_may(api, role):
+    response = api.post(
+        "/explain", json=QUESTION, headers={"X-User-Id": "someone", "X-User-Role": role}
+    )
+    assert response.status_code == 200
+    assert response.json()["answer"] == "nothing is on fire."

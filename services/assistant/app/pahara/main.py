@@ -30,6 +30,16 @@ log = logging.getLogger(__name__)
 
 MAX_QUESTION_CHARS = 1000
 
+# Pahara reads the telemetry, and the telemetry is a record of what every
+# shopper did: which pieces they looked at, what they put in a cart, which
+# request failed while they were paying. An artisan reading their own sales is
+# a different thing entirely, so this is not a dashboard permission — it is
+# the one role that is already trusted with everybody's data.
+#
+# The header is safe to trust: the gateway strips X-User-Role from every
+# incoming request, authenticated or not, and sets it from the signed token.
+ALLOWED_ROLE = "admin"
+
 
 class Question(BaseModel):
     question: str = Field(min_length=3, max_length=MAX_QUESTION_CHARS)
@@ -88,14 +98,21 @@ async def explain(
     request: Request,
     body: Question,
     x_user_id: str | None = Header(default=None),
+    x_user_role: str | None = Header(default=None),
 ) -> JSONResponse:
-    """Ask what the cluster has been doing.
-
-    Behind the gateway's identity check like everything else: reading the
-    telemetry means reading what every shopper did, which is not public.
-    """
+    """Ask what the cluster has been doing."""
     if not x_user_id:
         raise HTTPException(status_code=401, detail="Sign in to ask Pahara.")
+
+    if (x_user_role or "").strip().lower() != ALLOWED_ROLE:
+        # 403 rather than 404: hiding the route from a signed-in artisan would
+        # only mean they report it as broken. They are not allowed, and that
+        # is a sentence worth saying.
+        log.warning("refused a question", extra={"user_id": x_user_id, "role": x_user_role})
+        raise HTTPException(
+            status_code=403,
+            detail="Pahara reads the whole cluster's telemetry; that needs an admin.",
+        )
 
     pahara: Pahara = request.app.state.pahara
     try:

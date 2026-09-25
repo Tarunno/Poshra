@@ -66,6 +66,15 @@ spec:
             # the part no trace showed: the gateway's span, then the API call
             # it made, and a gap between them where the work happened. OTLP
             # over HTTP, which is what the Next.js instrumentation speaks.
+            # Pahara's route. Public and rate limited like the assistant's,
+            # because both spend money per question.
+            - name: PAHARA_BASE_URL
+              value: http://kong-proxy/api/pahara
+            # Where a trace id in Pahara's answer opens. The browser follows
+            # this, so it is the address a person can reach, not a service DNS
+            # name the cluster resolves.
+            - name: GRAFANA_PUBLIC_URL
+              value: http://192.168.110.203
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://otel-collector.observability.svc.cluster.local:4318
           ports:
