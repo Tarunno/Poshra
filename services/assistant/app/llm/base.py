@@ -13,7 +13,7 @@ the answer rests on stays in one place; a provider only converts.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -40,6 +40,13 @@ class ToolCall:
 class ToolResult:
     call: ToolCall
     content: Any
+
+
+@dataclass(frozen=True)
+class TextDelta:
+    """A piece of the answer, as the model writes it."""
+
+    text: str
 
 
 @dataclass(frozen=True)
@@ -85,6 +92,18 @@ class Conversation(Protocol):
     """One request's exchange. The provider keeps the history in its own shape."""
 
     async def next_turn(self) -> Turn: ...
+
+    def stream_turn(self) -> AsyncIterator[TextDelta | Turn]:
+        """The same turn, in pieces.
+
+        Yields TextDelta as the model writes, and finally one Turn — complete,
+        with any tool calls — so a caller can stream the words and still get
+        the structured turn it would have got from next_turn.
+
+        A provider that cannot stream falls back to not streaming, and the
+        difference is a slower first word rather than a missing feature.
+        """
+        ...
 
     def add_tool_results(self, results: Sequence[ToolResult]) -> None: ...
 

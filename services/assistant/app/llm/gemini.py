@@ -20,6 +20,7 @@ from app.llm.base import (
     Conversation,
     Photograph,
     Recording,
+    TextDelta,
     ToolCall,
     ToolResult,
     ToolSpec,
@@ -204,6 +205,62 @@ class GeminiEndpoint:
         log.error("every gemini model refused", extra={"refusals": refusals})
         raise RateLimited("; ".join(refusals))
 
+    async def open_stream(self, payload: dict[str, Any]):
+        """Like generate, but yields the answer as it is written.
+
+        The rotation applies to getting a stream open. Once bytes are flowing
+        there is no falling back to another model: the shopper has already
+        read the first half of a sentence, and starting again underneath them
+        is worse than finishing badly.
+        """
+        refusals: list[str] = []
+        spent: set[str] = set()
+
+        # Two passes for the same reason generate has them: the first walks
+        # the list quickly, the second gives a model that was merely busy a
+        # second chance. There is no backing off inside a pass — a stream is
+        # either open or it is not.
+        for _pass in (1, 2):
+            for model in self._rotation.available():
+                if model in spent:
+                    continue
+                client = httpx.AsyncClient(timeout=self._timeout)
+                try:
+                    stream = client.stream(
+                        "POST",
+                        f"{BASE_URL}/models/{model}:streamGenerateContent",
+                        params={"alt": "sse"},
+                        headers={"x-goog-api-key": self._api_key},
+                        json=payload,
+                    )
+                    response = await stream.__aenter__()
+                    if response.status_code == 200:
+                        self.answered_by = model
+                        try:
+                            async for line in response.aiter_lines():
+                                if line.startswith("data: "):
+                                    yield line[6:]
+                        finally:
+                            await stream.__aexit__(None, None, None)
+                            await client.aclose()
+                        return
+
+                    body = await response.aread()
+                    await stream.__aexit__(None, None, None)
+                    await client.aclose()
+
+                    wait = _retry_after_body(body) or BASE_BACKOFF
+                    if response.status_code == 429:
+                        self._rotation.rest(model, wait)
+                        spent.add(model)
+                    refusals.append(f"{model}: {response.status_code}")
+                except httpx.HTTPError as error:
+                    await client.aclose()
+                    refusals.append(f"{model}: {error}")
+
+        log.error("every gemini model refused a stream", extra={"refusals": refusals})
+        raise RateLimited("; ".join(refusals))
+
     async def _ask(
         self,
         client: httpx.AsyncClient,
@@ -290,7 +347,7 @@ class GeminiConversation:
             for message in messages
         ]
 
-    async def next_turn(self) -> Turn:
+    def _payload(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "systemInstruction": {"parts": [{"text": self._system}]},
             "contents": self._contents,
@@ -298,8 +355,10 @@ class GeminiConversation:
         }
         if self._tools:
             payload["tools"] = [{"functionDeclarations": self._tools}]
+        return payload
 
-        return self._read(await self._endpoint.generate(payload))
+    async def next_turn(self) -> Turn:
+        return self._read(await self._endpoint.generate(self._payload()))
 
     def _read(self, body: dict[str, Any]) -> Turn:
         candidates = body.get("candidates") or []
@@ -338,6 +397,35 @@ class GeminiConversation:
     def add_message(self, text: str) -> None:
         self._contents.append({"role": "user", "parts": [{"text": text}]})
 
+    async def stream_turn(self):
+        """The turn, in pieces, then whole.
+
+        Text is yielded as it arrives. Tool calls are not: a half-read
+        function call is not a thing anybody can act on, so they are
+        accumulated and handed over with the finished Turn, exactly as
+        next_turn would.
+        """
+        parts: list[dict[str, Any]] = []
+
+        async for chunk in self._endpoint.open_stream(self._payload()):
+            try:
+                body = json.loads(chunk)
+            except json.JSONDecodeError:
+                continue
+
+            candidates = body.get("candidates") or []
+            if not candidates:
+                continue
+            for part in (candidates[0].get("content") or {}).get("parts") or []:
+                parts.append(part)
+                # A chunk can carry an empty string — a thought signature, or
+                # the end of the turn — and yielding those would make the
+                # caller emit events that say nothing.
+                if part.get("text"):
+                    yield TextDelta(part["text"])
+
+        yield self._read({"candidates": [{"content": {"parts": parts}}]})
+
     def add_tool_results(self, results: Sequence[ToolResult]) -> None:
         self._contents.append(
             {
@@ -355,6 +443,22 @@ class GeminiConversation:
                 ],
             }
         )
+
+
+def _retry_after_body(body: bytes) -> float | None:
+    """The RetryInfo out of an error body, for a stream that never opened."""
+    try:
+        details = json.loads(body).get("error", {}).get("details", [])
+    except (json.JSONDecodeError, AttributeError):
+        return None
+    for detail in details:
+        delay = detail.get("retryDelay")
+        if isinstance(delay, str) and delay.endswith("s"):
+            try:
+                return float(delay[:-1])
+            except ValueError:
+                return None
+    return None
 
 
 def _retry_after(response: httpx.Response) -> float | None:

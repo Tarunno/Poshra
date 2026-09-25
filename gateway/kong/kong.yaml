@@ -129,6 +129,10 @@ services:
           - /api/assistant
         strip_path: true
         protocols: [http, https]
+        # The answer is streamed as it is written, and Kong buffers a
+        # response whole by default. Left on, every token would arrive at
+        # once at the end — a slow request wearing a stream's clothes.
+        response_buffering: false
         plugins:
           - name: poshra-identity
             config:

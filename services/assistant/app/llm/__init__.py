@@ -1,6 +1,7 @@
 from app.llm.base import (
     Conversation,
     Provider,
+    TextDelta,
     ToolCall,
     ToolResult,
     ToolSpec,
@@ -10,6 +11,7 @@ from app.llm.base import (
 __all__ = [
     "Conversation",
     "Provider",
+    "TextDelta",
     "ToolCall",
     "ToolResult",
     "ToolSpec",

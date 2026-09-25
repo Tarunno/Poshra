@@ -23,7 +23,7 @@ from typing import Any
 from app.catalog import CatalogClient, summarise
 from app.checkout import CheckoutClient, summarise_cart
 from app.config import Config
-from app.llm import Provider, ToolResult, ToolSpec, build_provider
+from app.llm import Provider, TextDelta, ToolResult, ToolSpec, Turn, build_provider
 
 log = logging.getLogger(__name__)
 
@@ -285,6 +285,73 @@ class Assistant:
                 ]
             )
 
+    async def stream(self, messages: list[dict[str, Any]], cookie: str = ""):
+        """The same answer, as it is written.
+
+        Yields events rather than returning one: text as the model produces
+        it, a line about what it is doing while a tool runs, and finally the
+        whole answer with the pieces attached.
+
+        The loop is the one above with the waiting made visible. Nothing about
+        what the assistant may do changes — the tool budget, the clock and the
+        cart rules are the same — because a streaming answer that could do
+        more than a buffered one would be two different assistants.
+        """
+        conversation = self._provider.start(system=SYSTEM_PROMPT, tools=TOOLS, messages=messages)
+        found: dict[str, dict[str, Any]] = {}
+        calls = 0
+        state = {"checkout_ready": False}
+
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self._config.turn_budget
+
+        while True:
+            if deadline - loop.time() <= 0:
+                log.warning("turn ran out of time", extra={"calls": calls})
+                yield {"type": "answer", **self._answer(RAN_LONG, found, calls, state)}
+                return
+
+            turn: Turn | None = None
+            try:
+                async for piece in conversation.stream_turn():
+                    if isinstance(piece, TextDelta):
+                        yield {"type": "delta", "text": piece.text}
+                    else:
+                        turn = piece
+            except Exception as error:  # noqa: BLE001 — the shopper is mid-sentence
+                log.warning("the stream broke", extra={"error": str(error), "calls": calls})
+                yield {"type": "answer", **self._answer(RAN_LONG, found, calls, state)}
+                return
+
+            if turn is None or not turn.wants_tools:
+                text = turn.text if turn else ""
+                yield {"type": "answer", **self._answer(text, found, calls, state)}
+                return
+
+            wanted = list(turn.tool_calls)
+            if calls + len(wanted) > self._config.max_tool_calls:
+                log.warning("tool call budget exhausted", extra={"calls": calls + len(wanted)})
+                yield {"type": "answer", **self._answer(GAVE_UP, found, calls, state)}
+                return
+
+            calls += len(wanted)
+            # Said out loud, because a silent pause while three searches run
+            # is indistinguishable from a page that has stopped working.
+            yield {"type": "status", "text": _searching(wanted)}
+
+            outputs = await asyncio.gather(
+                *(
+                    self._run_tool(call.name, call.arguments, found, cookie, state)
+                    for call in wanted
+                )
+            )
+            conversation.add_tool_results(
+                [
+                    ToolResult(call=call, content=output)
+                    for call, output in zip(wanted, outputs, strict=True)
+                ]
+            )
+
     def _answer(
         self,
         text: str,
@@ -392,3 +459,15 @@ def _search_params(arguments: dict[str, Any]) -> dict[str, Any]:
     if arguments.get("in_stock_only"):
         params["in_stock"] = "true"
     return params
+
+
+def _searching(calls) -> str:
+    """What to say while the tools run. Named after what is happening rather
+    than after the tool: "looking through the workshops" is what a shopper
+    would call it, and search_products is not."""
+    names = {call.name for call in calls}
+    if names <= {"view_cart", "add_to_cart", "prepare_checkout"}:
+        return "Checking your basket…"
+    if names == {"list_crafts"}:
+        return "Looking at which crafts there are…"
+    return "Looking through the workshops…"

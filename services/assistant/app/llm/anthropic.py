@@ -12,6 +12,7 @@ from app.llm.base import (
     Conversation,
     Photograph,
     Recording,
+    TextDelta,
     ToolCall,
     ToolResult,
     ToolSpec,
@@ -79,6 +80,19 @@ class AnthropicConversation:
 
     def add_message(self, text: str) -> None:
         self._messages.append({"role": "user", "content": text})
+
+    async def stream_turn(self):
+        """Not streamed here, only shaped like it.
+
+        Claude can stream, but this deployment has never had credit on it and
+        an untested streaming path is worse than an honest buffered one. The
+        answer arrives in a single piece, which the caller cannot tell from a
+        very fast model.
+        """
+        turn = await self.next_turn()
+        if turn.text:
+            yield TextDelta(turn.text)
+        yield turn
 
     def add_tool_results(self, results: Sequence[ToolResult]) -> None:
         import json

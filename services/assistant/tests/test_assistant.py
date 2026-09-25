@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from app.assistant import GAVE_UP, MAX_RESULTS, Assistant, _search_params
+from app.assistant import GAVE_UP, MAX_RESULTS, RAN_LONG, Assistant, _search_params
 from app.catalog import summarise
 from app.config import Config
 from app.llm import ToolCall, Turn
@@ -440,3 +440,106 @@ async def test_a_turn_that_runs_long_answers_with_what_it_has():
     # see a spinner and then an error. Better to stop first and say so.
     assert answer["reply"] == RAN_LONG
     assert answer["products"] == []
+
+
+# --- the answer as it is written ------------------------------------------------
+
+
+class StreamingModel(FakeProvider):
+    """A model that writes in pieces, and asks for tools in between."""
+
+    def __init__(self, script):
+        super().__init__([])
+        self.script = list(script)
+        self.conversation = self
+
+    def start(self, *, system, tools, messages):
+        return self
+
+    async def stream_turn(self):
+        from app.llm import TextDelta
+
+        step = self.script.pop(0)
+        for text in step.get("deltas", []):
+            yield TextDelta(text)
+        yield step["turn"]
+
+    def add_tool_results(self, results):
+        pass
+
+    async def next_turn(self):  # pragma: no cover — streaming is the path here
+        raise AssertionError("the streaming path should not fall back")
+
+
+async def collect(assistant, question="a wedding gift"):
+    return [event async for event in assistant.stream([{"role": "user", "content": question}])]
+
+
+async def test_the_words_arrive_before_the_answer_does():
+    catalog = FakeCatalog([product("a", "Nakshi kantha")])
+    model = StreamingModel(
+        [
+            {"turn": Turn(tool_calls=(call("search_products", {"query": "kantha"}),))},
+            {
+                "deltas": ["Here are ", "two pieces ", "under ৳8,000."],
+                "turn": Turn(text="Here are two pieces under ৳8,000."),
+            },
+        ]
+    )
+
+    events = await collect(Assistant(CONFIG, catalog, FakeCheckout(), model))
+    kinds = [event["type"] for event in events]
+
+    # The shopper sees something happening, then words, then the pieces.
+    assert kinds == ["status", "delta", "delta", "delta", "answer"]
+    assert "".join(e["text"] for e in events if e["type"] == "delta") == (
+        "Here are two pieces under ৳8,000."
+    )
+
+
+async def test_the_waiting_is_said_out_loud():
+    model = StreamingModel(
+        [
+            {"turn": Turn(tool_calls=(call("search_products", {"query": "kantha"}),))},
+            {"turn": Turn(text="Nothing yet.")},
+        ]
+    )
+
+    events = await collect(Assistant(CONFIG, FakeCatalog(), FakeCheckout(), model))
+
+    # A silent pause while a search runs is indistinguishable from a page that
+    # has stopped working.
+    assert events[0] == {"type": "status", "text": "Looking through the workshops…"}
+
+
+async def test_a_streamed_answer_carries_the_same_pieces_as_a_buffered_one():
+    catalog = FakeCatalog([product("a", "Nakshi kantha")])
+    model = StreamingModel(
+        [
+            {"turn": Turn(tool_calls=(call("search_products", {"query": "kantha"}),))},
+            {"deltas": ["Two pieces."], "turn": Turn(text="Two pieces.")},
+        ]
+    )
+
+    events = await collect(Assistant(CONFIG, catalog, FakeCheckout(), model))
+    answer = events[-1]
+
+    # A client that reads only the last event gets what /chat returns, which
+    # is what makes streaming safe to add rather than to replace.
+    assert answer["reply"] == "Two pieces."
+    assert [piece["slug"] for piece in answer["products"]] == ["a"]
+    assert answer["tool_calls"] == 1
+    assert answer["checkout_ready"] is False
+
+
+async def test_a_stream_that_breaks_still_answers():
+    class Broken(StreamingModel):
+        async def stream_turn(self):
+            raise RuntimeError("the connection went")
+            yield  # pragma: no cover
+
+    events = await collect(Assistant(CONFIG, FakeCatalog(), FakeCheckout(), Broken([])))
+
+    # Mid-sentence is the worst moment to say nothing at all.
+    assert events[-1]["type"] == "answer"
+    assert events[-1]["reply"] == RAN_LONG

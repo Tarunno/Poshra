@@ -7,13 +7,14 @@ requires a signed-in buyer and is rate limited.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.assistant import Assistant
@@ -303,3 +304,78 @@ async def _read_recording(voice: UploadFile | None) -> Recording | None:
     if not data:
         return None
     return Recording(media_type=media_type, data=data)
+
+
+@app.post("/chat/stream")
+async def chat_stream(
+    request: Request,
+    body: ChatRequest,
+    x_user_id: str | None = Header(default=None),
+    cookie: str | None = Header(default=None),
+) -> StreamingResponse:
+    """The same answer as /chat, sent as it is written.
+
+    Server-sent events rather than a websocket: this is one direction and one
+    request, and a websocket would be a connection to manage for no traffic
+    going the other way.
+
+    The events are `delta` for words, `status` for what it is doing while a
+    tool runs, and `answer` for the finished thing with its pieces attached.
+    A client that only reads `answer` gets exactly what /chat returns, which
+    is what makes this safe to add rather than replace.
+    """
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Sign in to ask the assistant.")
+    if body.messages[-1].role != "user":
+        raise HTTPException(status_code=400, detail="The last message must be yours.")
+
+    assistant: Assistant = request.app.state.assistant
+    conversation: list[dict[str, Any]] = [
+        {"role": turn.role, "content": turn.content} for turn in body.messages
+    ]
+
+    def sse(event: dict) -> str:
+        return f"data: {json.dumps(event)}\n\n"
+
+    async def events():
+        span = tracer().start_span("assistant.turn")
+        try:
+            async for event in assistant.stream(conversation, cookie=cookie or ""):
+                if event["type"] == "answer":
+                    span.set_attribute("poshra.tool_calls", event["tool_calls"])
+                    span.set_attribute("poshra.products", len(event["products"]))
+                    log.info(
+                        "answered",
+                        extra={
+                            "user_id": x_user_id,
+                            "streamed": True,
+                            "tool_calls": event["tool_calls"],
+                            "products": len(event["products"]),
+                        },
+                    )
+                yield sse(event)
+        except RateLimited as error:
+            log.warning("model rate limited", extra={"error": str(error)})
+            yield sse(
+                {
+                    "type": "error",
+                    "detail": "The assistant is busy right now. Try again in a minute.",
+                }
+            )
+        except Exception as error:  # noqa: BLE001
+            log.error("assistant failed", extra={"error": str(error)})
+            yield sse({"type": "error", "detail": "The assistant is unavailable right now."})
+        finally:
+            span.end()
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            # Nothing between here and the browser may hold these back: a
+            # buffered stream is a slow request wearing a stream's clothes.
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
