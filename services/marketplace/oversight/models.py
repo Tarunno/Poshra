@@ -24,6 +24,10 @@ from catalog.models import Product
 class NoteKind(models.TextChoices):
     CHANGE_REQUESTED = "change_requested", "Change requested"
     ARCHIVED = "archived", "Archived"
+    # Putting a piece back is an administrator's to do, not the artisan's.
+    # Otherwise archiving is a suggestion: anything taken out of the shop
+    # could be put back by the person it was taken from.
+    RESTORED = "restored", "Put back in the shop"
 
 
 class ListingNote(models.Model):

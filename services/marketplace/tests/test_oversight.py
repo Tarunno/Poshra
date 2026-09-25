@@ -256,3 +256,46 @@ def test_the_overview_counts_what_is_waiting_on_somebody(client, admin, nasima, 
     # slopes upward through a quiet week.
     assert len(body["daily"]) == body["window_days"] + 1
     assert body["daily"][0]["takings_minor"] == 0
+
+
+def test_putting_a_piece_back_closes_the_note_that_took_it_out(client, admin, nasima, craft):
+    piece = listing(nasima, craft, "Jute floor mat")
+    note_on(client, admin, piece, kind="archived", reason="Photograph is unusable.")
+
+    back = note_on(client, admin, piece, kind="restored", reason="New photograph is fine.")
+
+    assert back.status_code == 201
+    piece.refresh_from_db()
+    assert piece.status == ProductStatus.PUBLISHED
+    # The reason it was taken out no longer stands, so it stops being
+    # something the artisan is being asked about — and being told the piece is
+    # back is not itself a task.
+    assert client.get("/my/notes", HTTP_X_USER_ID=str(nasima.user.id)).json() == []
+    # It is still in the history, which is where a record belongs.
+    history = client.get("/my/notes?open=false", HTTP_X_USER_ID=str(nasima.user.id)).json()
+    assert sorted(note["kind"] for note in history) == ["archived", "restored"]
+
+
+def test_an_artisan_cannot_put_their_own_piece_back(client, admin, nasima, craft):
+    piece = listing(nasima, craft, "Jute floor mat")
+    note_on(client, admin, piece, kind="archived", reason="Duplicate listing.")
+
+    refused = note_on(client, nasima.user, piece, kind="restored", reason="I want it back.")
+
+    # Otherwise archiving is a suggestion: anything taken out of the shop
+    # could be put straight back by the person it was taken from.
+    assert refused.status_code == 403
+    piece.refresh_from_db()
+    assert piece.status == ProductStatus.ARCHIVED
+
+
+def test_the_table_says_what_is_already_being_dealt_with(client, admin, nasima, craft):
+    listing(nasima, craft, "Nothing wrong with it")
+    noticed = listing(nasima, craft, "Already mentioned")
+    note_on(client, admin, noticed, reason="Please add the dimensions.")
+
+    rows = {row["title"]: row for row in as_person(client, admin, LISTINGS).json()["results"]}
+
+    # So an administrator can see what is in hand before saying it again.
+    assert rows["Already mentioned"]["open_notes"] == 1
+    assert rows["Nothing wrong with it"]["open_notes"] == 0

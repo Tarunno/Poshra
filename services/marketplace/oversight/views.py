@@ -48,7 +48,8 @@ class Listings(generics.ListAPIView):
 
     def get_queryset(self):
         listings = Product.objects.select_related("artisan", "craft").annotate(
-            photographs=Count("images")
+            photographs=Count("images", distinct=True),
+            open_notes=Count("notes", filter=Q(notes__resolved_at__isnull=True), distinct=True),
         )
 
         params = self.request.query_params
@@ -124,7 +125,12 @@ class Overview(APIView):
                 "open_notes": ListingNote.objects.filter(resolved_at__isnull=True).count(),
                 "latest_listings": OversightListingSerializer(
                     Product.objects.select_related("artisan", "craft")
-                    .annotate(photographs=Count("images"))
+                    .annotate(
+                        photographs=Count("images", distinct=True),
+                        open_notes=Count(
+                            "notes", filter=Q(notes__resolved_at__isnull=True), distinct=True
+                        ),
+                    )
                     .order_by("-created_at")[:RECENT],
                     many=True,
                 ).data,
@@ -199,11 +205,22 @@ class Notes(APIView):
         form = WriteNoteSerializer(data=request.data)
         form.is_valid(raise_exception=True)
 
+        author = getattr(request, "poshra_user", None) or current_user(request)
+        kind = form.validated_data["kind"]
+
         note = ListingNote.objects.create(
             product=listing,
-            author=getattr(request, "poshra_user", None) or current_user(request),
-            kind=form.validated_data["kind"],
+            author=author,
+            kind=kind,
             reason=form.validated_data["reason"],
+            # Being told your work is back is not a task. A restoration is a
+            # record of what happened, so it is written closed and stays out
+            # of the list of things waiting on somebody.
+            **(
+                {"resolved_at": timezone.now(), "resolved_by": author}
+                if kind == NoteKind.RESTORED
+                else {}
+            ),
         )
 
         if note.kind == NoteKind.ARCHIVED:
@@ -212,6 +229,15 @@ class Notes(APIView):
             # history with it, and this is reversible where a delete is not.
             listing.status = ProductStatus.ARCHIVED
             listing.save(update_fields=["status"])
+
+        if note.kind == NoteKind.RESTORED:
+            listing.status = ProductStatus.PUBLISHED
+            listing.save(update_fields=["status"])
+            # The reason it was taken out no longer stands, so it stops being
+            # something the artisan is being asked about.
+            ListingNote.objects.filter(
+                product=listing, kind=NoteKind.ARCHIVED, resolved_at__isnull=True
+            ).update(resolved_at=timezone.now(), resolved_by=note.author)
 
         return Response(ListingNoteSerializer(note).data, status=status.HTTP_201_CREATED)
 

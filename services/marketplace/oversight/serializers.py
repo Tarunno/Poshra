@@ -20,6 +20,9 @@ class OversightListingSerializer(serializers.ModelSerializer):
     artisan_slug = serializers.CharField(source="artisan.slug", read_only=True)
     craft = serializers.CharField(source="craft.name", read_only=True)
     photographs = serializers.IntegerField(source="images.count", read_only=True)
+    # Annotated by the view. Shown in the table so an administrator can see
+    # what is already being dealt with before saying it again.
+    open_notes = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = Product
@@ -36,6 +39,7 @@ class OversightListingSerializer(serializers.ModelSerializer):
             "craft",
             "origin_district",
             "photographs",
+            "open_notes",
             "created_at",
         )
 
