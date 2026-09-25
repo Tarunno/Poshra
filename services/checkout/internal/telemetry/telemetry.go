@@ -18,8 +18,10 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
@@ -74,6 +76,35 @@ func Start(ctx context.Context, service string, log *slog.Logger) (Shutdown, err
 		propagation.Baggage{},
 	))
 
+	// Metrics go the same way as the spans, to the same collector. Counting
+	// orders is not something a trace can do: a trace answers "what happened
+	// to this request", and "how many pieces sold today" is a different
+	// question that no sampling strategy can be trusted with.
+	meterShutdown := func(context.Context) error { return nil }
+	if metrics, err := otlpmetricgrpc.New(ctx); err != nil {
+		// A service that will not take orders because it cannot count them
+		// has the priorities backwards.
+		log.Error("metrics are off", "error", err)
+	} else {
+		meterProvider := sdkmetric.NewMeterProvider(
+			sdkmetric.WithResource(attrs),
+			// Long enough that the export is not most of the traffic, short
+			// enough that a dashboard is not describing the last minute.
+			sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metrics,
+				sdkmetric.WithInterval(15*time.Second))),
+		)
+		otel.SetMeterProvider(meterProvider)
+		meterShutdown = meterProvider.Shutdown
+	}
+
 	log.Info("tracing on", "service", service, "collector", endpoint)
-	return provider.Shutdown, nil
+	return func(ctx context.Context) error {
+		// Both, and the first error rather than neither: a failed flush of one
+		// is not a reason to skip the other.
+		traceErr := provider.Shutdown(ctx)
+		if err := meterShutdown(ctx); err != nil && traceErr == nil {
+			return err
+		}
+		return traceErr
+	}, nil
 }

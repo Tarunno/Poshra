@@ -25,6 +25,7 @@ type Server struct {
 	catalog   *catalog.Client
 	inventory inventoryv1.InventoryServiceClient
 	payments  payment.Processor
+	metrics   orderMetrics
 }
 
 func New(
@@ -36,7 +37,7 @@ func New(
 	payments payment.Processor,
 ) *Server {
 	return &Server{cfg: cfg, log: log, store: db, catalog: products,
-		inventory: inventory, payments: payments}
+		inventory: inventory, payments: payments, metrics: newOrderMetrics(log)}
 }
 
 func (s *Server) Handler() http.Handler {

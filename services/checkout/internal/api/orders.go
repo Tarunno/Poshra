@@ -237,8 +237,13 @@ func (s *Server) placeOrder(
 		// a client that hung up cannot cancel the release.
 		s.releaseQuietly(reservationID, "payment_failed")
 		if errors.Is(err, payment.ErrDeclined) {
+			// A decline is the system working, so it is counted here and not
+			// as an error on the dashboard. Too many of them is still a
+			// problem — just a different one, and one only this number shows.
+			s.metrics.ended(ctx, "declined")
 			return nil, http.StatusPaymentRequired, errorBody("payment was declined"), nil
 		}
+		s.metrics.ended(ctx, "payment_failed")
 		return nil, 0, nil, fmt.Errorf("charge: %w", err)
 	}
 
@@ -280,8 +285,13 @@ func (s *Server) placeOrder(
 		// The money is taken but the order did not persist. Release the hold
 		// and surface it: this needs a refund, which is a human decision.
 		s.releaseQuietly(reservationID, "order_persist_failed")
+		s.metrics.ended(ctx, "persist_failed")
 		return nil, 0, nil, fmt.Errorf("persist order: %w", err)
 	}
+
+	// After the write, not before it: an order counted and then lost is a
+	// number nobody can reconcile against the database.
+	s.metrics.confirmed(ctx, total, currency)
 
 	body, err := json.Marshal(order)
 	if err != nil {
