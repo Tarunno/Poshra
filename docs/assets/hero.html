@@ -169,6 +169,22 @@
         width: 78px; height: 20px; border-radius: 11px; background: var(--ink);
       }
 
+      /* ---------- the assistant, in front of everything ----------
+         Not in a device frame, because it is not on one: the widget floats
+         over whatever page you are reading, and putting it in a laptop would
+         say it lives somewhere. */
+      .asking {
+        position: absolute;
+        left: 452px;
+        top: 236px;
+        width: 330px;
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: 0 40px 70px -18px rgba(26, 21, 35, 0.45);
+        transform: rotate(-2.5deg);
+      }
+      .asking img { display: block; width: 100%; }
+
       /* ---------- caption ---------- */
       .caption { position: absolute; left: 78px; top: 76px; }
       .caption h1 {
@@ -206,6 +222,10 @@
       <div class="tablet">
         <div class="camera"></div>
         <div class="screen"><img src="cap-pahara.png" alt="" /></div>
+      </div>
+
+      <div class="asking">
+        <img src="cap-asking.png" alt="" />
       </div>
 
       <div class="phone">
