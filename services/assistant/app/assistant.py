@@ -16,6 +16,7 @@ are affordable, what a failing tool means, and which pieces the answer rests on.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -188,6 +189,14 @@ GAVE_UP = (
     "I am having trouble narrowing that down. Could you tell me a craft or a budget to start from?"
 )
 
+# What a shopper is told when the answer ran past its budget. It names what was
+# found rather than apologising: by the time this is reached there are usually
+# pieces in hand, and they are shown beside it.
+RAN_LONG = (
+    "That took longer than it should have. Here is what I found before I ran out of time — "
+    "ask me again and I will pick up from there."
+)
+
 
 class Assistant:
     def __init__(
@@ -227,25 +236,54 @@ class Assistant:
         # the way to pay. The model never gets to take the money itself.
         state = {"checkout_ready": False}
 
+        # One clock for the whole answer. Each model call was bounded already,
+        # but nothing bounded six of them in a row: a turn could run past the
+        # gateway's patience and be thrown away after being paid for.
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self._config.turn_budget
+
         while True:
-            turn = await conversation.next_turn()
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                log.warning("turn ran out of time", extra={"calls": calls})
+                return self._answer(RAN_LONG, found, calls, state)
+
+            try:
+                # wait_for rather than a check afterwards: a model that hangs
+                # is the case this exists for, and checking the clock after it
+                # returns is checking it too late.
+                turn = await asyncio.wait_for(conversation.next_turn(), timeout=remaining)
+            except TimeoutError:
+                log.warning("the model ran out of time", extra={"calls": calls})
+                return self._answer(RAN_LONG, found, calls, state)
 
             if not turn.wants_tools:
                 return self._answer(turn.text, found, calls, state)
 
-            results = []
-            for call in turn.tool_calls:
-                calls += 1
-                if calls > self._config.max_tool_calls:
-                    # Answer with what is already in hand rather than letting a
-                    # confused turn loop against the catalog on our bill.
-                    log.warning("tool call budget exhausted", extra={"calls": calls})
-                    return self._answer(GAVE_UP, found, calls, state)
+            wanted = list(turn.tool_calls)
+            if calls + len(wanted) > self._config.max_tool_calls:
+                # Answer with what is already in hand rather than letting a
+                # confused turn loop against the catalog on our bill.
+                log.warning("tool call budget exhausted", extra={"calls": calls + len(wanted)})
+                return self._answer(GAVE_UP, found, calls, state)
 
-                output = await self._run_tool(call.name, call.arguments, found, cookie, state)
-                results.append(ToolResult(call=call, content=output))
-
-            conversation.add_tool_results(results)
+            calls += len(wanted)
+            # Together, not one after another. The model asks for several
+            # searches at once and they are independent requests to the same
+            # catalog; running them in turn made a shopper wait for the sum of
+            # them for no reason.
+            outputs = await asyncio.gather(
+                *(
+                    self._run_tool(call.name, call.arguments, found, cookie, state)
+                    for call in wanted
+                )
+            )
+            conversation.add_tool_results(
+                [
+                    ToolResult(call=call, content=output)
+                    for call, output in zip(wanted, outputs, strict=True)
+                ]
+            )
 
     def _answer(
         self,

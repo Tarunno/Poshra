@@ -66,6 +66,10 @@ class Config:
     max_tool_calls: int
     request_timeout: float
     llm_timeout: float
+    # How long a shopper waits for one answer, all tool calls included. The
+    # gateway gives the route 90 seconds; this has to be comfortably under it,
+    # because a budget the caller has already given up on is not a budget.
+    turn_budget: float
 
     @classmethod
     def load(cls) -> Config:
@@ -89,4 +93,5 @@ class Config:
             # A tool-using turn takes a while; the gateway allows ninety
             # seconds, so this stays inside that.
             llm_timeout=float(os.environ.get("LLM_TIMEOUT", "60")),
+            turn_budget=float(os.environ.get("ASSISTANT_TURN_BUDGET", "25")),
         )

@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from app.assistant import GAVE_UP, MAX_RESULTS, Assistant, _search_params
@@ -15,6 +17,7 @@ CONFIG = Config(
     max_tool_calls=3,
     request_timeout=1.0,
     llm_timeout=5.0,
+    turn_budget=25.0,
 )
 
 
@@ -191,7 +194,10 @@ async def test_the_tool_budget_stops_a_runaway_conversation():
 
     # Every iteration costs money, so the loop is capped rather than trusted.
     assert answer["reply"] == GAVE_UP
-    assert answer["tool_calls"] == CONFIG.max_tool_calls + 1
+    # The count is what was spent, not what was asked for: the call that took
+    # it over the line is refused before it is made, so it is not billed and
+    # not counted.
+    assert answer["tool_calls"] == CONFIG.max_tool_calls
     assert len(catalog.searches) == CONFIG.max_tool_calls
 
 
@@ -347,3 +353,90 @@ async def test_an_empty_cart_offers_nothing_to_pay_for():
     )
 
     assert answer["checkout_ready"] is False
+
+
+# --- how long a shopper waits -------------------------------------------------
+
+
+class SlowCatalog(FakeCatalog):
+    """A catalogue that takes its time, and records when each call ran."""
+
+    def __init__(self, results, delay: float) -> None:
+        super().__init__(results)
+        self.delay = delay
+        self.overlapped = False
+        self._running = 0
+
+    async def search(self, params):
+        self._running += 1
+        # Two in flight at once is the whole point of running them together.
+        self.overlapped = self.overlapped or self._running > 1
+        try:
+            await asyncio.sleep(self.delay)
+            return await super().search(params)
+        finally:
+            self._running -= 1
+
+
+async def test_tools_asked_for_together_run_together():
+    catalog = SlowCatalog([product("a", "One")], delay=0.05)
+    provider = FakeProvider(
+        [
+            Turn(
+                tool_calls=(
+                    call("search_products", {"query": "kantha"}),
+                    call("search_products", {"query": "jamdani"}),
+                    call("search_products", {"query": "jute"}),
+                )
+            ),
+            Turn(text="Three sorts of thing."),
+        ]
+    )
+
+    started = asyncio.get_running_loop().time()
+    answer = await Assistant(CONFIG, catalog, FakeCheckout(), provider).reply(
+        [{"role": "user", "content": "show me things"}]
+    )
+    elapsed = asyncio.get_running_loop().time() - started
+
+    assert answer["reply"] == "Three sorts of thing."
+    assert len(catalog.searches) == 3
+    assert catalog.overlapped, "the searches ran one after another"
+    # Three 50ms searches in sequence is 150ms. They are independent requests
+    # to the same catalogue, and a shopper should wait for the slowest rather
+    # than the sum.
+    assert elapsed < 0.12
+
+
+class Dawdling:
+    """A model that never answers in time."""
+
+    name = "slow"
+
+    def __init__(self) -> None:
+        self.conversation = self
+
+    def start(self, *, system, tools, messages):
+        return self
+
+    async def next_turn(self):
+        await asyncio.sleep(10)
+        raise AssertionError("the budget should have given up long before this")
+
+    def add_tool_results(self, results):  # pragma: no cover — never reached
+        raise AssertionError
+
+
+async def test_a_turn_that_runs_long_answers_with_what_it_has():
+    from app.assistant import RAN_LONG
+
+    budget = Config(**{**CONFIG.__dict__, "turn_budget": 0.05})
+
+    answer = await Assistant(budget, FakeCatalog(), FakeCheckout(), Dawdling()).reply(
+        [{"role": "user", "content": "take your time"}]
+    )
+
+    # The gateway would cut this off at ninety seconds and the shopper would
+    # see a spinner and then an error. Better to stop first and say so.
+    assert answer["reply"] == RAN_LONG
+    assert answer["products"] == []

@@ -16,6 +16,7 @@ CONFIG = Config(
     max_tool_calls=2,
     request_timeout=1.0,
     llm_timeout=5.0,
+    turn_budget=25.0,
 )
 
 

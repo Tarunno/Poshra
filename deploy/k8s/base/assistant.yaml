@@ -53,6 +53,12 @@ spec:
             # request. Every model call becomes a span, and the model's name
             # is in the URL, so which one answered and which refused is in the
             # trace without the code having to say so.
+            # How long a shopper waits for one answer, tool calls included.
+            # The gateway allows the route 90 seconds; this stops well short,
+            # because an answer the caller has already given up on is one that
+            # was paid for and thrown away.
+            - name: ASSISTANT_TURN_BUDGET
+              value: "25"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://otel-collector.observability.svc.cluster.local:4317
             - name: OTEL_EXPORTER_OTLP_INSECURE
