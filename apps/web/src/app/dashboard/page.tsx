@@ -10,9 +10,11 @@ import { ActivityFeed } from "@/components/activity-feed";
 import { OrderSummary } from "@/components/order-summary";
 import { SalesChart } from "@/components/sales-chart";
 import { WorkshopPiece } from "@/components/workshop-piece";
+import { OversightBoard } from "@/components/oversight-board";
 import { getCurrentUser } from "@/lib/api";
 import { listMyProducts } from "@/lib/catalog";
 import { listOrders } from "@/lib/checkout";
+import { getOverview } from "@/lib/oversight";
 import { getSalesSummary } from "@/lib/sales";
 import { formatMoney } from "@/lib/format";
 
@@ -58,6 +60,46 @@ export default async function DashboardPage() {
   if (!user) redirect("/login?next=%2Fdashboard");
 
   const artisan = user.role === "artisan";
+
+  // An administrator gets a different dashboard entirely. They have no
+  // workshop, and the question they open this page with is about the
+  // marketplace rather than about their own pieces.
+  if (user.role === "admin") {
+    const overview = await getOverview();
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div>
+            <p className="text-ink-mint text-sm font-semibold tracking-wide uppercase">
+              Oversight
+            </p>
+            <h1 className="mt-1 text-3xl font-extrabold tracking-tight">
+              The whole marketplace.
+            </h1>
+          </div>
+          <Button
+            asChild
+            variant="secondary"
+            size="sm"
+            className="rounded-full"
+          >
+            <Link href="/dashboard/marketplace">
+              Every listing
+              <ArrowUpRight className="size-4" aria-hidden />
+            </Link>
+          </Button>
+        </div>
+
+        {overview ? (
+          <OversightBoard overview={overview} />
+        ) : (
+          <p className="opacity-70">
+            The marketplace could not be read just now. Try again in a moment.
+          </p>
+        )}
+      </div>
+    );
+  }
 
   // Independent fetches, so they run together: awaiting them in sequence would
   // add the slower one to the faster one for no reason.
