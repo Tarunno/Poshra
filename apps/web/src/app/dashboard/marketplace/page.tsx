@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ImageOff, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  ImageOff,
+  MessageSquareWarning,
+  Search,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -139,6 +144,19 @@ export default async function MarketplaceListings({
                         no photograph
                       </span>
                     )}
+                    {piece.open_notes > 0 && (
+                      // So nobody says the same thing twice to an artisan who
+                      // is already dealing with it.
+                      <span className="text-ink-lilac ml-2 inline-flex items-center gap-1 text-xs font-medium">
+                        <MessageSquareWarning
+                          className="size-3.5"
+                          aria-hidden
+                        />
+                        {piece.open_notes === 1
+                          ? "one note open"
+                          : `${piece.open_notes} notes open`}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-3">
                     <Link
@@ -159,7 +177,11 @@ export default async function MarketplaceListings({
                     <StatusTag status={piece.status} />
                   </td>
                   <td className="px-3 py-3">
-                    <ListingNoteForm listingId={piece.id} title={piece.title} />
+                    <ListingNoteForm
+                      listingId={piece.id}
+                      title={piece.title}
+                      archived={piece.status === "archived"}
+                    />
                   </td>
                 </tr>
               ))}

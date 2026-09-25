@@ -21,6 +21,9 @@ export type OversightListing = {
   craft: string;
   origin_district: string;
   photographs: number;
+  /** Notes nobody has closed yet. Shown so an administrator can see what is
+   *  already in hand before saying it again. */
+  open_notes: number;
   created_at: string;
 };
 
@@ -37,7 +40,7 @@ export type OversightSale = {
 
 export type ListingNote = {
   id: string;
-  kind: "change_requested" | "archived";
+  kind: "change_requested" | "archived" | "restored";
   reason: string;
   listing: string;
   listing_slug: string;

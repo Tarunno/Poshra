@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { resolveNoteAction, type NoteState } from "@/lib/oversight-actions";
 import type { ListingNote } from "@/lib/oversight";
 
-function Done() {
+function Done({ archived }: { archived: boolean }) {
   const { pending } = useFormStatus();
   return (
     <Button
@@ -20,7 +20,10 @@ function Done() {
       disabled={pending}
     >
       <Check className="size-4" aria-hidden />
-      {pending ? "…" : "Done"}
+      {/* An archived piece is not theirs to put back, so the wording does not
+          promise that it will be. It says the work is done and leaves the
+          decision where it belongs. */}
+      {pending ? "…" : archived ? "I have fixed it" : "Done"}
     </Button>
   );
 }
@@ -66,9 +69,14 @@ export function ArtisanNotes({ notes }: { notes: ListingNote[] }) {
               )}
             </div>
             <p className="mt-1 text-sm">{note.reason}</p>
-            <form action={formAction} className="mt-3">
+            <form action={formAction} className="mt-3 flex items-center gap-3">
               <input type="hidden" name="note_id" value={note.id} />
-              <Done />
+              <Done archived={note.kind === "archived"} />
+              {note.kind === "archived" && (
+                <span className="text-xs opacity-60">
+                  Poshra puts it back once somebody has looked.
+                </span>
+              )}
             </form>
           </li>
         ))}

@@ -2,23 +2,28 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Archive, MessageSquarePlus } from "lucide-react";
+import { Archive, MessageSquarePlus, Undo2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { writeNoteAction, type NoteState } from "@/lib/oversight-actions";
 
-function Submit({ kind }: { kind: "change_requested" | "archived" }) {
+const WORDING = {
+  change_requested: "Ask for the change",
+  archived: "Take it out",
+  restored: "Put it back",
+} as const;
+
+function Submit({ kind }: { kind: keyof typeof WORDING }) {
   const { pending } = useFormStatus();
-  const archiving = kind === "archived";
   return (
     <Button
       type="submit"
       size="sm"
-      variant={archiving ? "destructive" : "default"}
+      variant={kind === "archived" ? "destructive" : "default"}
       className="rounded-full"
       disabled={pending}
     >
-      {pending ? "Sending…" : archiving ? "Archive it" : "Ask for the change"}
+      {pending ? "Sending…" : WORDING[kind]}
     </Button>
   );
 }
@@ -34,14 +39,17 @@ function Submit({ kind }: { kind: "change_requested" | "archived" }) {
 export function ListingNoteForm({
   listingId,
   title,
+  archived = false,
 }: {
   listingId: string;
   title: string;
+  /** An archived piece is offered the way back rather than another archiving. */
+  archived?: boolean;
 }) {
   const [state, formAction] = useActionState(writeNoteAction, {} as NoteState);
-  const [kind, setKind] = useState<"change_requested" | "archived">(
-    "change_requested",
-  );
+  const [kind, setKind] = useState<
+    "change_requested" | "archived" | "restored"
+  >(archived ? "restored" : "change_requested");
   const [open, setOpen] = useState(false);
 
   if (state.message) {
@@ -57,8 +65,12 @@ export function ListingNoteForm({
         className="rounded-full"
         onClick={() => setOpen(true)}
       >
-        <MessageSquarePlus className="size-4" aria-hidden />
-        Say something
+        {archived ? (
+          <Undo2 className="size-4" aria-hidden />
+        ) : (
+          <MessageSquarePlus className="size-4" aria-hidden />
+        )}
+        {archived ? "Put it back" : "Say something"}
       </Button>
     );
   }
@@ -108,7 +120,9 @@ export function ListingNoteForm({
         placeholder={
           kind === "archived"
             ? "Why it is coming out of the shop. The artisan will read this."
-            : "What needs to change. The artisan will read this."
+            : kind === "restored"
+              ? "Why it is going back — recorded beside the reason it came out."
+              : "What needs to change. The artisan will read this."
         }
         className="bg-background w-full rounded-xl border-0 p-3 text-sm"
       />
