@@ -53,6 +53,9 @@ How to work:
 - Say how confident you are, and say plainly when the telemetry does not
   answer the question. "The traces do not show this" is a useful answer.
 - Be brief. An operator reading you is already having a bad morning.
+- An empty result is not an answer. No lines matched usually means the label
+  or the window was wrong, not that nothing happened — read what the tool says
+  about it and change the query rather than asking the same thing again.
 
 Useful queries:
 
@@ -182,6 +185,10 @@ class Pahara:
         # What it opened, in order. Returned with the answer so a reader can
         # follow the same path — and so an answer citing nothing is obvious.
         looked_at: list[dict[str, Any]] = []
+        # And what it has already opened. A model that gets an empty result
+        # tends to ask the same thing again in slightly different words; the
+        # first real investigation spent four of its ten looks that way.
+        already: dict[str, Any] = {}
 
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self._budget
@@ -206,7 +213,7 @@ class Pahara:
             looks += len(wanted)
 
             outputs = await asyncio.gather(
-                *(self._look(call.name, call.arguments, looked_at) for call in wanted)
+                *(self._look(call.name, call.arguments, looked_at, already) for call in wanted)
             )
             conversation.add_tool_results(
                 [
@@ -218,28 +225,53 @@ class Pahara:
     def _answer(self, text: str, looked_at: list[dict[str, Any]], looks: int) -> dict[str, Any]:
         return {"answer": text, "looked_at": looked_at, "looks": looks}
 
-    async def _look(self, name: str, arguments: Any, looked_at: list[dict[str, Any]]) -> Any:
+    async def _look(
+        self,
+        name: str,
+        arguments: Any,
+        looked_at: list[dict[str, Any]],
+        already: dict[str, Any],
+    ) -> Any:
         arguments = arguments if isinstance(arguments, dict) else {}
         looked_at.append({"tool": name, **{k: v for k, v in arguments.items() if k != "limit"}})
 
+        # Asking the same question twice cannot produce a different answer, and
+        # the budget it spends is the budget that would have reached one.
+        fingerprint = f"{name}:{sorted(arguments.items())}"
+        if fingerprint in already:
+            return {
+                "already_asked": (
+                    "You ran this exact query earlier in this investigation and got the "
+                    "result below. Asking again will not change it — try a different "
+                    "label, a wider window, or a different signal."
+                ),
+                "previous_result": already[fingerprint],
+            }
+
         try:
+            result: Any
             if name == "find_traces":
-                return {
+                result = {
                     "traces": await self._observatory.find_traces(
                         str(arguments.get("query", "")),
                         int(arguments.get("limit") or 8),
                     )
                 }
-            if name == "read_trace":
-                return await self._observatory.read_trace(str(arguments.get("trace_id", "")))
-            if name == "search_logs":
-                return await self._observatory.search_logs(
+            elif name == "read_trace":
+                result = await self._observatory.read_trace(str(arguments.get("trace_id", "")))
+            elif name == "search_logs":
+                result = await self._observatory.search_logs(
                     str(arguments.get("query", "")),
                     since=str(arguments.get("since") or "1h"),
                     limit=int(arguments.get("limit") or 20),
                 )
-            if name == "query_metrics":
-                return await self._observatory.query_metrics(str(arguments.get("query", "")))
+            elif name == "query_metrics":
+                result = await self._observatory.query_metrics(str(arguments.get("query", "")))
+            else:
+                return {"error": f"there is no tool called {name}."}
+
+            already[fingerprint] = result
+            return result
         except Unreachable as error:
             # Handed back rather than raised: a rejected query is usually a
             # syntax error the model can fix, and a backend that is down is
@@ -249,5 +281,3 @@ class Pahara:
         except Exception as error:  # noqa: BLE001
             log.error("a look broke", extra={"tool": name, "error": str(error)})
             return {"error": "that query could not be run."}
-
-        return {"error": f"there is no tool called {name}."}

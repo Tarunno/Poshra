@@ -279,3 +279,51 @@ def test_an_admin_may(api, role):
     )
     assert response.status_code == 200
     assert response.json()["answer"] == "nothing is on fire."
+
+
+# --- not mistaking silence for good news ---------------------------------------
+
+
+EMPTY_LOGS = {"status": "success", "data": {"result": []}}
+LABELS = {"status": "success", "data": ["k8s_namespace_name", "service_name"]}
+
+
+async def test_no_matching_lines_says_what_the_labels_are(monkeypatch):
+    def route(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/labels"):
+            return httpx.Response(200, json=LABELS)
+        return httpx.Response(200, json=EMPTY_LOGS)
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda *a, **k: real(*a, **{**k, "transport": httpx.MockTransport(route)}),
+    )
+
+    found = await Observatory(TEMPO, LOKI, PROM, 5.0).search_logs('{service="checkout"}')
+
+    # Nothing matched reads exactly like nothing is wrong. The first real
+    # investigation spent four of its ten looks re-asking with a label that
+    # does not exist here, so the empty answer now names the ones that do.
+    assert found["count"] == 0
+    assert "not the same as there being no errors" in found["nothing_matched"]
+    assert "service_name" in found["nothing_matched"]
+
+
+async def test_the_same_query_twice_is_answered_from_the_first_time(observatory):
+    model = ScriptedModel(
+        [
+            Turn(tool_calls=(call("find_traces", {"query": "{ status = error }"}),)),
+            Turn(tool_calls=(call("find_traces", {"query": "{ status = error }"}),)),
+            Turn(text="done"),
+        ]
+    )
+
+    await Pahara(model, observatory).explain("why?")
+
+    repeated = model.results_seen[1][0].content
+    # It is told, rather than quietly served the same thing again: the budget
+    # a repeat spends is the budget that would have reached an answer.
+    assert "Asking again will not change it" in repeated["already_asked"]
+    assert repeated["previous_result"]["traces"][0]["trace_id"] == "28f5027fec0a53d5"

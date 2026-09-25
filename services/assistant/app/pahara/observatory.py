@@ -37,6 +37,8 @@ class Observatory:
         self._loki = loki.rstrip("/")
         self._prometheus = prometheus.rstrip("/")
         self._timeout = timeout
+        # Fetched once, when an empty result needs explaining.
+        self._known_labels: list[str] | None = None
 
     async def _get(self, url: str, params: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -58,7 +60,7 @@ class Observatory:
         body = await self._get(
             f"{self._tempo}/api/search", {"q": query, "limit": max(1, min(limit, 20))}
         )
-        found = []
+        found: list[dict[str, Any]] = []
         for trace in body.get("traces") or []:
             service = trace.get("rootServiceName", "?")
             name = trace.get("rootTraceName", "")
@@ -70,7 +72,10 @@ class Observatory:
                     "started": trace.get("startTimeUnixNano"),
                 }
             )
-        return found
+        if found:
+            return found
+        log.info("a trace search matched nothing", extra={"query": query})
+        return []
 
     async def read_trace(self, trace_id: str) -> dict[str, Any]:
         """One trace, flattened to the spans and their durations.
@@ -131,7 +136,34 @@ class Observatory:
             for timestamp, line in stream.get("values") or []:
                 lines.append({"service": service, "at": timestamp, "line": line[:MAX_LINE_CHARS]})
         lines.sort(key=lambda entry: entry["at"], reverse=True)
-        return {"count": len(lines), "lines": lines[:MAX_LOG_LINES]}
+        if lines:
+            return {"count": len(lines), "lines": lines[:MAX_LOG_LINES]}
+
+        # Nothing matched — and nothing matched reads exactly like nothing is
+        # wrong. The usual cause is a label that does not exist here, so the
+        # answer names the ones that do rather than leaving the model to guess
+        # again, which is what it does: four of ten looks in the first real
+        # investigation were the same search with a made-up label.
+        return {
+            "count": 0,
+            "lines": [],
+            "nothing_matched": (
+                "No lines matched. This means the selector found nothing, which is not "
+                "the same as there being no errors. Check the label names and the window "
+                f"before concluding. Labels that exist here: {', '.join(await self.labels())}."
+            ),
+        }
+
+    async def labels(self) -> list[str]:
+        """The label names Loki actually has. Cached: they change with the
+        collector's configuration, not with the question."""
+        if self._known_labels is None:
+            try:
+                body = await self._get(f"{self._loki}/loki/api/v1/labels", {})
+                self._known_labels = sorted(body.get("data") or [])
+            except Unreachable:
+                self._known_labels = []
+        return self._known_labels
 
     async def query_metrics(self, query: str) -> dict[str, Any]:
         """PromQL, instant. For "is this one service or all of them"."""
