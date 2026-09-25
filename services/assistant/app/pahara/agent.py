@@ -52,7 +52,12 @@ How to work:
   service thought it was doing.
 - Say how confident you are, and say plainly when the telemetry does not
   answer the question. "The traces do not show this" is a useful answer.
-- Be brief. An operator reading you is already having a bad morning.
+- Write so that somebody who answers customer emails can act on it. Lead with
+  what a person would have noticed — "the shop was fine, nothing took longer
+  than half a second" — and put the trace ids and the numbers after it, as
+  support for what you said rather than instead of saying it. Never open with
+  a query or a metric name.
+- Be brief. Whoever is reading you is already having a bad morning.
 - An empty result is not an answer. No lines matched usually means the label
   or the window was wrong, not that nothing happened — read what the tool says
   about it and change the query rather than asking the same thing again.
@@ -88,8 +93,17 @@ FIND_TRACES = ToolSpec(
                 ),
             },
             "limit": {"type": "integer", "description": "How many traces, at most 20."},
+            "why": {
+                "type": "string",
+                "description": (
+                    "One short sentence in plain English saying what you are checking and "
+                    "why — written for somebody who supports customers, not for whoever "
+                    "wrote the query. 'Checking whether any request took longer than a "
+                    "second', not 'p95 latency by service'."
+                ),
+            },
         },
-        "required": ["query"],
+        "required": ["query", "why"],
     },
 )
 
@@ -101,8 +115,19 @@ READ_TRACE = ToolSpec(
     ),
     parameters={
         "type": "object",
-        "properties": {"trace_id": {"type": "string", "description": "From find_traces."}},
-        "required": ["trace_id"],
+        "properties": {
+            "trace_id": {"type": "string", "description": "From find_traces."},
+            "why": {
+                "type": "string",
+                "description": (
+                    "One short sentence in plain English saying what you are checking and "
+                    "why — written for somebody who supports customers, not for whoever "
+                    "wrote the query. 'Checking whether any request took longer than a "
+                    "second', not 'p95 latency by service'."
+                ),
+            },
+        },
+        "required": ["trace_id", "why"],
     },
 )
 
@@ -124,8 +149,17 @@ SEARCH_LOGS = ToolSpec(
                 "description": "A window such as 15m, 1h, 6h. Without one there are no results.",
             },
             "limit": {"type": "integer", "description": "Lines, at most 40."},
+            "why": {
+                "type": "string",
+                "description": (
+                    "One short sentence in plain English saying what you are checking and "
+                    "why — written for somebody who supports customers, not for whoever "
+                    "wrote the query. 'Checking whether any request took longer than a "
+                    "second', not 'p95 latency by service'."
+                ),
+            },
         },
-        "required": ["query"],
+        "required": ["query", "why"],
     },
 )
 
@@ -137,8 +171,19 @@ QUERY_METRICS = ToolSpec(
     ),
     parameters={
         "type": "object",
-        "properties": {"query": {"type": "string", "description": "PromQL."}},
-        "required": ["query"],
+        "properties": {
+            "query": {"type": "string", "description": "PromQL."},
+            "why": {
+                "type": "string",
+                "description": (
+                    "One short sentence in plain English saying what you are checking and "
+                    "why — written for somebody who supports customers, not for whoever "
+                    "wrote the query. 'Checking whether any request took longer than a "
+                    "second', not 'p95 latency by service'."
+                ),
+            },
+        },
+        "required": ["query", "why"],
     },
 )
 
@@ -149,9 +194,15 @@ TOOLS = [FIND_TRACES, READ_TRACE, SEARCH_LOGS, QUERY_METRICS]
 # takes more steps than a search.
 MAX_LOOKS = 10
 
+# What the model is asked when the clock is nearly out: no more looking, write
+# the answer from what is already in hand.
+CONCLUDE = """You are out of time to look at anything else. Answer the question now,
+from what you have already found, in plain English and in a few sentences. Say
+plainly if what you found does not answer it."""
+
 RAN_LONG = (
-    "I ran out of time before I could finish looking. What I found is above; "
-    "ask me again and I will carry on from there."
+    "I ran out of time before I could finish looking, and could not reach the "
+    "model to summarise what I had. The queries I ran are below."
 )
 
 LOOKED_ENOUGH = (
@@ -167,12 +218,18 @@ class Pahara:
         observatory: Observatory,
         *,
         max_looks: int = MAX_LOOKS,
-        budget: float = 60.0,
+        budget: float = 75.0,
+        # Held back from the budget so there is always time to say something.
+        # The first real investigation spent its whole minute looking — seven
+        # good queries — and had nothing left to write a conclusion with, so
+        # the operator got a list of PromQL and no answer.
+        reserve: float = 20.0,
     ) -> None:
         self._provider = provider
         self._observatory = observatory
         self._max_looks = max_looks
         self._budget = budget
+        self._reserve = reserve
 
     async def explain(self, question: str) -> dict[str, Any]:
         conversation = self._provider.start(
@@ -195,8 +252,9 @@ class Pahara:
 
         while True:
             remaining = deadline - loop.time()
-            if remaining <= 0:
-                return self._answer(RAN_LONG, looked_at, looks)
+            if remaining <= self._reserve:
+                # Out of time to look, not out of time to answer.
+                return await self._conclude(conversation, looked_at, looks, remaining)
 
             try:
                 turn = await asyncio.wait_for(conversation.next_turn(), timeout=remaining)
@@ -209,7 +267,7 @@ class Pahara:
 
             wanted = list(turn.tool_calls)
             if looks + len(wanted) > self._max_looks:
-                return self._answer(LOOKED_ENOUGH, looked_at, looks)
+                return await self._conclude(conversation, looked_at, looks, deadline - loop.time())
             looks += len(wanted)
 
             outputs = await asyncio.gather(
@@ -224,6 +282,34 @@ class Pahara:
 
     def _answer(self, text: str, looked_at: list[dict[str, Any]], looks: int) -> dict[str, Any]:
         return {"answer": text, "looked_at": looked_at, "looks": looks}
+
+    async def _conclude(
+        self,
+        conversation: Any,
+        looked_at: list[dict[str, Any]],
+        looks: int,
+        remaining: float,
+    ) -> dict[str, Any]:
+        """Stop looking and write the answer from what is already in hand.
+
+        A trail of queries with no sentence on top is not an answer, and it is
+        the shape an investigation ends in unless something makes it stop in
+        time. The model already has every result in its context; this only
+        tells it that looking is over.
+        """
+        if remaining <= 2:
+            # Not even time for one call. Say so rather than inventing one.
+            log.warning("no time left to conclude", extra={"looks": looks})
+            return self._answer(RAN_LONG, looked_at, looks)
+
+        conversation.add_message(CONCLUDE)
+        try:
+            turn = await asyncio.wait_for(conversation.next_turn(), timeout=max(remaining - 1, 2))
+        except Exception as error:  # noqa: BLE001
+            log.warning("could not conclude", extra={"looks": looks, "error": str(error)})
+            return self._answer(RAN_LONG, looked_at, looks)
+
+        return self._answer(turn.text or LOOKED_ENOUGH, looked_at, looks)
 
     async def _look(
         self,

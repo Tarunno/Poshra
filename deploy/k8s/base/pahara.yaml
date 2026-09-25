@@ -64,9 +64,12 @@ spec:
             - name: PROMETHEUS_URL
               value: http://prometheus.observability.svc.cluster.local:9090
             # An investigation takes more steps than a shopper's question, so
-            # it is given longer — still well inside the gateway's patience.
+            # it is given longer — still well inside the gateway's 90s. Twenty
+            # of these seconds are held back for writing the answer: the first
+            # real one spent its whole minute looking and had nothing left to
+            # conclude with.
             - name: PAHARA_BUDGET
-              value: "60"
+              value: "75"
             # Required by the shared configuration even though Pahara has no
             # catalogue and no cart: it builds the same provider from it.
             - name: CATALOG_URL

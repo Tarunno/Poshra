@@ -16,6 +16,9 @@ const PAHARA_BASE =
 /** One query it ran, in the order it ran them. */
 export type Look = {
   tool: string;
+  /** Why it looked, in its own words. The query is the evidence; this is the
+   *  sentence somebody reading at speed actually needs. */
+  why?: string;
   query?: string;
   trace_id?: string;
   since?: string;

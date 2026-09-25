@@ -155,6 +155,9 @@ class ScriptedModel:
     def __init__(self, turns):
         self.turns = list(turns)
         self.results_seen = []
+        # What it was told outside a tool result — in practice, that looking
+        # is over and it should answer.
+        self.messages = []
 
     name = "scripted"
 
@@ -168,6 +171,9 @@ class ScriptedModel:
 
     def add_tool_results(self, results):
         self.results_seen.append(results)
+
+    def add_message(self, text):
+        self.messages.append(text)
 
 
 def call(name, arguments):
@@ -327,3 +333,62 @@ async def test_the_same_query_twice_is_answered_from_the_first_time(observatory)
     # a repeat spends is the budget that would have reached an answer.
     assert "Asking again will not change it" in repeated["already_asked"]
     assert repeated["previous_result"]["traces"][0]["trace_id"] == "28f5027fec0a53d5"
+
+
+# --- always answering, and in words ---------------------------------------------
+
+
+class Talkative(ScriptedModel):
+    """Remembers what it was told after the looking stopped."""
+
+    def __init__(self, turns):
+        super().__init__(turns)
+        self.messages = []
+
+    def add_message(self, text):
+        self.messages.append(text)
+
+
+async def test_running_out_of_looks_still_produces_an_answer(observatory):
+    model = ScriptedModel(
+        [
+            # Two looks are allowed, so the third turn is refused — and the
+            # fourth is the model being told to stop looking and answer.
+            Turn(tool_calls=(call("find_traces", {"query": f"{{ q{i} }}", "why": "looking"}),))
+            for i in range(3)
+        ]
+        + [Turn(text="Nothing was slower than half a second.")]
+    )
+
+    answered = await Pahara(model, observatory, max_looks=2).explain("is it slow?")
+
+    # Before this, hitting the budget returned a list of queries and no
+    # sentence — which is not an answer however good the queries were.
+    assert answered["answer"] == "Nothing was slower than half a second."
+    assert "out of time to look" in model.messages[0]
+    assert answered["looks"] == 2
+
+
+async def test_a_look_says_why_in_plain_english(observatory):
+    model = ScriptedModel(
+        [
+            Turn(
+                tool_calls=(
+                    call(
+                        "find_traces",
+                        {
+                            "query": "{ duration > 1s }",
+                            "why": "Checking whether any request took longer than a second.",
+                        },
+                    ),
+                )
+            ),
+            Turn(text="All quiet."),
+        ]
+    )
+
+    answered = await Pahara(model, observatory).explain("is it slow?")
+
+    # The trail is read by whoever is having the bad morning, and TraceQL is
+    # not an explanation.
+    assert answered["looked_at"][0]["why"].startswith("Checking whether")

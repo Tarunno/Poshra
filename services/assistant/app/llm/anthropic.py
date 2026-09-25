@@ -77,6 +77,9 @@ class AnthropicConversation:
 
         return Turn(text="\n".join(texts).strip(), tool_calls=tuple(calls))
 
+    def add_message(self, text: str) -> None:
+        self._messages.append({"role": "user", "content": text})
+
     def add_tool_results(self, results: Sequence[ToolResult]) -> None:
         import json
 

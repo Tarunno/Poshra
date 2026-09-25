@@ -88,6 +88,14 @@ class Conversation(Protocol):
 
     def add_tool_results(self, results: Sequence[ToolResult]) -> None: ...
 
+    def add_message(self, text: str) -> None:
+        """Say something to the model without answering a tool call.
+
+        Needed to tell it to stop looking and write what it has: the results
+        are already in its context, and what is missing is the instruction.
+        """
+        ...
+
 
 class Provider(Protocol):
     name: str

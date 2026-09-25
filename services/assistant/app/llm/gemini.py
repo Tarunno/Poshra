@@ -301,6 +301,9 @@ class GeminiConversation:
 
         return Turn(text="\n".join(texts).strip(), tool_calls=tuple(calls))
 
+    def add_message(self, text: str) -> None:
+        self._contents.append({"role": "user", "parts": [{"text": text}]})
+
     def add_tool_results(self, results: Sequence[ToolResult]) -> None:
         self._contents.append(
             {
