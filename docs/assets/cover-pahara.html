@@ -4,28 +4,30 @@
     radial-gradient(1100px 650px at 12% 12%, var(--mint) 0%, transparent 62%),
     radial-gradient(900px 600px at 88% 88%, var(--sky) 0%, transparent 60%), var(--cream); }
 
-  .label { max-width:430px; }
-  .tablet { left:64px; bottom:54px; width:392px; }
+  /* The tablet carries the real page, so it is the largest thing here: a
+     device small enough to be decoration is a device not worth drawing. */
+  .label { left:724px; top:58px; max-width:790px; }
+  .tablet { left:58px; top:46px; width:626px; }
 
   /* The page's own words, typeset rather than screenshotted: a poster is read
      at a tenth of the size it is drawn, and a screenshot of a paragraph is
      illegible long before the paragraph is. */
-  .quote { position:absolute; left:520px; top:132px; width:1016px; }
+  .quote { position:absolute; left:724px; top:312px; width:812px; }
   .quote .said {
-    background:#fff; border-radius:26px; padding:30px 34px;
+    background:#fff; border-radius:26px; padding:26px 30px;
     box-shadow:0 30px 60px -22px rgba(26,21,35,.28);
-    font-size:19px; line-height:1.5;
+    font-size:17.5px; line-height:1.5;
   }
   .quote .said p + p { margin-top:14px; }
   .quote .said .lead { font-weight:600; }
   .quote .said .honest { color:var(--ink); opacity:.72; }
 
-  .trail { margin-top:22px; background:rgba(255,255,255,.72); border-radius:26px; padding:26px 32px; }
+  .trail { margin-top:18px; background:rgba(255,255,255,.72); border-radius:26px; padding:22px 28px; }
   .trail h3 { font-size:12px; letter-spacing:.14em; text-transform:uppercase; opacity:.55; }
   .trail ol { margin-top:14px; list-style:none; }
-  .trail li { display:flex; gap:12px; margin-top:12px; font-size:15.5px; line-height:1.45; }
+  .trail li { display:flex; gap:11px; margin-top:10px; font-size:14.5px; line-height:1.42; }
   .trail .n { opacity:.35; min-width:16px; }
-  .trail code { display:block; margin-top:3px; font-size:12.5px; opacity:.6;
+  .trail code { display:block; margin-top:3px; font-size:11.5px; opacity:.6;
                 font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
 </style></head><body>
   <div class="label">
