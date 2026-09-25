@@ -62,6 +62,12 @@ spec:
             # an invalidation is only seen by the pod that performed it.
             - name: REDIS_URL
               valueFrom: { secretKeyRef: { name: poshra-redis, key: REDIS_URL } }
+            # Rendering a page is the slowest part of serving one, and it was
+            # the part no trace showed: the gateway's span, then the API call
+            # it made, and a gap between them where the work happened. OTLP
+            # over HTTP, which is what the Next.js instrumentation speaks.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observability.svc.cluster.local:4318
           ports:
             - name: http
               containerPort: 3000
