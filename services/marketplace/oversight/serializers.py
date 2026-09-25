@@ -11,6 +11,7 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from catalog.models import Product
+from oversight.models import ListingNote, NoteKind
 from sales.models import SaleLine
 
 
@@ -54,3 +55,32 @@ class OversightSaleSerializer(serializers.ModelSerializer):
             "currency",
             "occurred_at",
         )
+
+
+class ListingNoteSerializer(serializers.ModelSerializer):
+    listing = serializers.CharField(source="product.title", read_only=True)
+    listing_slug = serializers.CharField(source="product.slug", read_only=True)
+    author = serializers.CharField(source="author.full_name", default="", read_only=True)
+    is_open = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = ListingNote
+        fields = (
+            "id",
+            "kind",
+            "reason",
+            "listing",
+            "listing_slug",
+            "author",
+            "created_at",
+            "resolved_at",
+            "is_open",
+        )
+
+
+class WriteNoteSerializer(serializers.Serializer):
+    """What an administrator sends. The reason is required on purpose: an
+    archiving with no explanation is work taken away with nothing to answer."""
+
+    kind = serializers.ChoiceField(choices=NoteKind.choices)
+    reason = serializers.CharField(max_length=1000, min_length=4, trim_whitespace=True)

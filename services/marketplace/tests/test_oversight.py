@@ -165,3 +165,94 @@ def test_takings_are_counted_in_minor_units(client, admin, nasima, craft):
     # Exact, not nearly right: a float here makes a day's takings an opinion.
     assert body["sales"]["takings_minor"] == 860000
     assert body["latest_sales"][0]["artisan"] == "Nasima Khatun"
+
+
+# --- what an administrator may change -----------------------------------------
+
+
+def note_on(client, user, piece, kind="change_requested", reason="The photograph is blurry."):
+    return client.post(
+        f"/oversight/listings/{piece.id}/notes",
+        {"kind": kind, "reason": reason},
+        content_type="application/json",
+        HTTP_X_USER_ID=str(user.id),
+    )
+
+
+def test_archiving_takes_a_piece_out_of_the_shop_without_deleting_it(client, admin, nasima, craft):
+    piece = listing(nasima, craft, "Blurry photograph")
+
+    response = note_on(client, admin, piece, kind="archived", reason="Photograph is unusable.")
+
+    assert response.status_code == 201
+    piece.refresh_from_db()
+    assert piece.status == ProductStatus.ARCHIVED
+    # Still there: a piece referenced by a sale cannot be removed without
+    # taking the artisan's earnings history with it, and archiving is
+    # reversible where a delete is not.
+    assert Product.objects.filter(id=piece.id).exists()
+
+
+def test_a_note_must_say_why(client, admin, nasima, craft):
+    piece = listing(nasima, craft, "Jute floor mat")
+
+    response = note_on(client, admin, piece, kind="archived", reason="")
+
+    # Work taken away with no explanation leaves the artisan nothing to answer.
+    assert response.status_code == 400
+    piece.refresh_from_db()
+    assert piece.status == ProductStatus.PUBLISHED
+
+
+def test_an_artisan_cannot_write_notes_on_anybody(client, nasima, karim, craft):
+    piece = listing(karim, craft, "Terracotta jar")
+
+    assert note_on(client, nasima.user, piece).status_code == 403
+
+
+def test_the_artisan_sees_what_was_asked_of_them(client, admin, nasima, karim, craft):
+    mine = listing(nasima, craft, "Jute floor mat")
+    theirs = listing(karim, craft, "Terracotta jar")
+    note_on(client, admin, mine, reason="Please add the dimensions.")
+    note_on(client, admin, theirs, reason="Not yours to see.")
+
+    body = client.get("/my/notes", HTTP_X_USER_ID=str(nasima.user.id)).json()
+
+    assert [note["reason"] for note in body] == ["Please add the dimensions."]
+    assert body[0]["listing"] == "Jute floor mat"
+    assert body[0]["is_open"] is True
+
+
+def test_an_artisan_can_close_a_note_on_their_own_piece(client, admin, nasima, craft):
+    piece = listing(nasima, craft, "Jute floor mat")
+    note_id = note_on(client, admin, piece).json()["id"]
+
+    closed = client.post(f"/oversight/notes/{note_id}/resolve", HTTP_X_USER_ID=str(nasima.user.id))
+
+    assert closed.status_code == 200
+    assert closed.json()["is_open"] is False
+    # And it leaves their list, which is the point of the list.
+    assert client.get("/my/notes", HTTP_X_USER_ID=str(nasima.user.id)).json() == []
+
+
+def test_somebody_elses_note_is_not_yours_to_close(client, admin, nasima, karim, craft):
+    piece = listing(nasima, craft, "Jute floor mat")
+    note_id = note_on(client, admin, piece).json()["id"]
+
+    refused = client.post(f"/oversight/notes/{note_id}/resolve", HTTP_X_USER_ID=str(karim.user.id))
+
+    # A role alone is not authorisation: this checks the note's owner.
+    assert refused.status_code == 403
+
+
+def test_the_overview_counts_what_is_waiting_on_somebody(client, admin, nasima, craft):
+    piece = listing(nasima, craft, "Jute floor mat")
+    note_on(client, admin, piece)
+
+    body = as_person(client, admin, OVERVIEW).json()
+
+    assert body["open_notes"] == 1
+    # A day with no sales is a zero rather than a missing row, or a chart
+    # slopes upward through a quiet week.
+    assert len(body["daily"]) == body["window_days"] + 1
+    assert body["daily"][0]["takings_minor"] == 0
