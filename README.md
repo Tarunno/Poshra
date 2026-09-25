@@ -22,7 +22,7 @@
 ---
 
 <p align="center">
-  <img src="docs/assets/cover-product.png" alt="Poshra on four screens: the oversight board for the whole marketplace on a monitor, the storefront on a laptop, the listing editor in a browser window, and the mobile storefront on a phone" width="960">
+  <img src="docs/assets/cover-product.png" alt="Poshra on four screens: the oversight board for the whole marketplace on a monitor and again on a phone, the storefront on a laptop, and the listing editor in a browser window" width="960">
 </p>
 
 ---
