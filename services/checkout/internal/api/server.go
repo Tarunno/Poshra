@@ -70,6 +70,11 @@ func (s *Server) Handler() http.Handler {
 		s.getOrder(w, r, r.PathValue("id"))
 	})
 
+	// Support: an order number is the only way in, and every use is logged.
+	mux.HandleFunc("GET /support/orders/{id}", func(w http.ResponseWriter, r *http.Request) {
+		s.lookUpOrder(w, r, r.PathValue("id"))
+	})
+
 	return s.withLogging(mux)
 }
 

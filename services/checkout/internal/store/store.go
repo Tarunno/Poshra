@@ -426,6 +426,36 @@ func (s *Store) Order(ctx context.Context, userID, orderID string) (Order, error
 	return order, nil
 }
 
+// OrderByID finds an order without knowing whose it is.
+//
+// Deliberately separate from Order, which takes a user id and will not return
+// somebody else's. This one exists for support: a customer gives an order
+// number and somebody has to be able to look it up. Every caller of this is
+// an administrator, and every call is logged with who made it — the audit is
+// the thing that makes a lookup different from a list.
+func (s *Store) OrderByID(ctx context.Context, orderID string) (Order, error) {
+	var order Order
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, user_id, status, total_minor, currency, reservation_id,
+		        payment_ref, failure_reason, created_at
+		   FROM orders WHERE id = $1`, orderID).
+		Scan(&order.ID, &order.UserID, &order.Status, &order.TotalMinor, &order.Currency,
+			&order.ReservationID, &order.PaymentRef, &order.FailureReason, &order.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Order{}, ErrNotFound
+	}
+	if err != nil {
+		return Order{}, err
+	}
+
+	items, err := s.orderItems(ctx, order.ID)
+	if err != nil {
+		return Order{}, err
+	}
+	order.Items = items
+	return order, nil
+}
+
 func (s *Store) Orders(ctx context.Context, userID string, limit int) ([]Order, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT id, user_id, status, total_minor, currency, reservation_id,
