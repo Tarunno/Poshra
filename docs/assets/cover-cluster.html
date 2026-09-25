@@ -1,0 +1,130 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="cover-base.css">
+<style>
+  body { height:1010px; background:
+    radial-gradient(1100px 620px at 88% 6%, var(--sky) 0%, transparent 60%),
+    radial-gradient(900px 560px at 4% 94%, var(--mint) 0%, transparent 62%), var(--cream); }
+
+  .head { position:absolute; left:64px; top:52px; }
+  .head .eyebrow { font-size:15px; letter-spacing:.14em; text-transform:uppercase; opacity:.55; font-weight:700; }
+  .head h2 { font-size:40px; line-height:1.05; margin-top:8px; letter-spacing:-.02em; }
+  .head p { font-size:16.5px; opacity:.62; margin-top:8px; }
+
+  .bands { position:absolute; left:56px; right:56px; top:196px; display:flex; flex-direction:column; gap:16px; }
+
+  .band { border-radius:28px; padding:18px 22px 20px; position:relative; }
+  .band::after { content:""; position:absolute; inset:8px; border:2px dashed rgba(26,21,35,.16);
+                 border-radius:22px; pointer-events:none; }
+  .band h3 { font-size:12px; letter-spacing:.14em; text-transform:uppercase; opacity:.55; }
+  .band .why { font-size:13.5px; opacity:.6; margin-top:2px; }
+  .row { display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:nowrap; }
+
+  .node { background:#fff; border-radius:14px; padding:9px 13px; box-shadow:0 8px 18px -12px rgba(26,21,35,.4); }
+  .node b { display:block; font-size:14.5px; line-height:1.15; }
+  .node span { display:block; font-size:11px; opacity:.55; margin-top:2px; }
+  .node.ghost { background:rgba(255,255,255,.55); box-shadow:none; }
+
+  .group { display:flex; gap:8px; background:rgba(255,255,255,.45); border-radius:18px; padding:8px; }
+  .to { opacity:.35; font-size:19px; flex:none; }
+  .pair { display:flex; flex-direction:column; gap:8px; }
+
+  .feet { position:absolute; left:56px; right:56px; bottom:44px; display:flex; gap:16px; }
+  .foot { flex:1; border-radius:24px; padding:16px 20px; position:relative; }
+  .foot::after { content:""; position:absolute; inset:7px; border:2px dashed rgba(26,21,35,.16);
+                 border-radius:18px; pointer-events:none; }
+  .foot h3 { font-size:12px; letter-spacing:.14em; text-transform:uppercase; opacity:.55; }
+  .foot p { font-size:14px; margin-top:7px; line-height:1.45; }
+  .foot code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; opacity:.72; }
+</style></head><body>
+  <div class="head">
+    <div class="eyebrow">পসরা · the cluster</div>
+    <h2>Three machines, nine services, one repository.</h2>
+    <p>Everything below runs on a home Kubernetes cluster and changes only when git does.</p>
+  </div>
+
+  <div class="bands">
+    <div class="band bg-tint-saffron" style="background:var(--saffron)">
+      <h3>A request</h3>
+      <p class="why">The gateway is the only way in, and every service behind it is refused traffic from anywhere else.</p>
+      <div class="row">
+        <div class="node ghost"><b>a browser</b><span>192.168.110.201</span></div>
+        <span class="to">→</span>
+        <div class="node"><b>MetalLB</b><span>bare-metal load balancer</span></div>
+        <span class="to">→</span>
+        <div class="node"><b>Kong</b><span>routes · identity · rate limits · tracing</span></div>
+        <span class="to">→</span>
+        <div class="group">
+          <div class="node"><b>web</b><span>Next.js ×2</span></div>
+          <div class="node"><b>marketplace</b><span>Django ×2</span></div>
+          <div class="node"><b>checkout</b><span>Go ×2</span></div>
+          <div class="node"><b>inventory</b><span>Go ×2</span></div>
+          <div class="node"><b>assistant</b><span>FastAPI</span></div>
+          <div class="node"><b>pahara</b><span>FastAPI</span></div>
+        </div>
+        <span class="to">→</span>
+        <div class="group">
+          <div class="node"><b>Postgres</b><span>one per service</span></div>
+          <div class="node"><b>Redis</b><span>shared render cache</span></div>
+          <div class="node"><b>MinIO</b><span>photographs</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="band" style="background:var(--lilac,#efe7ff)">
+      <h3>An order</h3>
+      <p class="why">The order and its announcement are written in one transaction, so neither can exist without the other.</p>
+      <div class="row">
+        <div class="node"><b>checkout</b><span>reserve → charge → write</span></div>
+        <span class="to">→</span>
+        <div class="node"><b>outbox row</b><span>same transaction as the order</span></div>
+        <span class="to">→</span>
+        <div class="node"><b>relay</b><span>publishes, resumes the trace</span></div>
+        <span class="to">→</span>
+        <div class="node"><b>Kafka</b><span>poshra.orders.created.v1 · 3 partitions</span></div>
+        <span class="to">→</span>
+        <div class="pair">
+          <div class="node"><b>inventory</b><span>settles the reservation · Go</span></div>
+          <div class="node"><b>sales-consumer</b><span>builds the artisan's view · Python</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="band" style="background:var(--sky)">
+      <h3>Everything it did</h3>
+      <p class="why">One trace from the gateway to the database and across Kafka into two languages; logs carry its id.</p>
+      <div class="row">
+        <div class="node ghost"><b>every service</b><span>OpenTelemetry</span></div>
+        <span class="to">→</span>
+        <div class="node"><b>otel-collector</b><span>traces · metrics · logs</span></div>
+        <span class="to">→</span>
+        <div class="group">
+          <div class="node"><b>Tempo</b><span>traces → RED metrics</span></div>
+          <div class="node"><b>Loki</b><span>logs, parsed</span></div>
+          <div class="node"><b>Prometheus</b><span>metrics</span></div>
+        </div>
+        <span class="to">→</span>
+        <!-- Both read the same three stores. Pahara does not read Grafana, and
+             an arrow through it would say that it does. -->
+        <div class="pair">
+          <div class="node"><b>Grafana</b><span>rate · errors · duration, for people</span></div>
+          <div class="node" style="background:var(--mint)"><b>Pahara</b><span>the same three, for an agent</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="feet">
+    <div class="foot" style="background:var(--mint)">
+      <h3>The machines</h3>
+      <p><code>k8s-cp · k8s-worker-1 · k8s-worker-2</code><br>
+         Kubernetes 1.33, Cilium for the network — every service refuses traffic
+         the policy does not name, and Hubble shows what it dropped.</p>
+    </div>
+    <div class="foot" style="background:var(--rose)">
+      <h3>How it changes</h3>
+      <p>Push to <code>main</code> → CI builds and pins immutable image tags →
+         Argo CD syncs <code>poshra</code>, <code>poshra-kafka</code> and
+         <code>poshra-observability</code>. Migrations run as a PreSync hook
+         before any pod starts. Nothing is applied by hand.</p>
+    </div>
+  </div>
+</body></html>
