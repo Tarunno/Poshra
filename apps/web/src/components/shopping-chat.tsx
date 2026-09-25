@@ -8,10 +8,16 @@ import { Button } from "@/components/ui/button";
 import { ChatAnswer } from "@/components/chat-answer";
 import { Input } from "@/components/ui/input";
 import { ProductCard } from "@/components/product-card";
-import { askAssistant, type ChatTurn } from "@/lib/assistant-actions";
+import { askStreaming } from "@/lib/ask-stream";
+import { type ChatTurn } from "@/lib/assistant-actions";
 import type { Product } from "@/lib/catalog";
 
-type Entry = ChatTurn & { products?: Product[]; checkoutReady?: boolean };
+type Entry = ChatTurn & {
+  products?: Product[];
+  checkoutReady?: boolean;
+  /** True while the words are still arriving, so the caret can blink. */
+  writing?: boolean;
+};
 
 const OPENERS = [
   "A wedding gift under ৳8,000",
@@ -30,6 +36,9 @@ export function ShoppingChat({ compact = false }: { compact?: boolean }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
+  // What it is doing while a tool runs. A silent pause is indistinguishable
+  // from a page that has stopped working.
+  const [status, setStatus] = useState<string>();
   const [error, setError] = useState<string>();
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -42,29 +51,49 @@ export function ShoppingChat({ compact = false }: { compact?: boolean }) {
     if (!text || pending) return;
 
     const history: Entry[] = [...entries, { role: "user", content: text }];
-    setEntries(history);
+    // An empty assistant turn goes in straight away and fills as the words
+    // arrive. Waiting for the first delta to add it would make the page jump
+    // once the answer started, which is the moment it should feel settled.
+    setEntries([...history, { role: "assistant", content: "", writing: true }]);
     setDraft("");
     setError(undefined);
+    setStatus(undefined);
     setPending(true);
 
     // Only the roles and text go back — the products attached to earlier
     // answers are for display, and resending them would pay to re-read them.
-    const answer = await askAssistant(
+    const { answer, error: failed } = await askStreaming(
       history.map(({ role, content }) => ({ role, content })),
+      {
+        onDelta: (piece) =>
+          setEntries((current) => {
+            const next = [...current];
+            const last = next[next.length - 1];
+            next[next.length - 1] = { ...last, content: last.content + piece };
+            return next;
+          }),
+        onStatus: setStatus,
+      },
     );
-    setPending(false);
 
-    if (answer.error) {
-      setError(answer.error);
+    setPending(false);
+    setStatus(undefined);
+
+    if (failed) {
+      // Drop the half-written turn: half an answer with an error under it
+      // reads as though part of it might still be true.
+      setEntries(history);
+      setError(failed);
       return;
     }
+
     setEntries([
       ...history,
       {
         role: "assistant",
-        content: answer.reply,
-        products: answer.products,
-        checkoutReady: answer.checkoutReady,
+        content: answer?.reply ?? "",
+        products: answer?.products,
+        checkoutReady: answer?.checkout_ready,
       },
     ]);
   }
@@ -126,7 +155,13 @@ export function ShoppingChat({ compact = false }: { compact?: boolean }) {
               </p>
             ) : (
               <div className="space-y-5">
-                <ChatAnswer>{entry.content}</ChatAnswer>
+                {entry.content ? (
+                  <ChatAnswer>{entry.content}</ChatAnswer>
+                ) : (
+                  entry.writing && (
+                    <p className="text-sm opacity-60">Thinking…</p>
+                  )
+                )}
                 {entry.checkoutReady && (
                   // The assistant totals a cart; paying happens on the checkout
                   // page, where the order is reviewed and the idempotency key is
@@ -159,9 +194,9 @@ export function ShoppingChat({ compact = false }: { compact?: boolean }) {
           </div>
         ))}
 
-        {pending && (
+        {pending && status && (
           <p aria-live="polite" className="text-sm opacity-60">
-            Looking through the workshops…
+            {status}
           </p>
         )}
 
