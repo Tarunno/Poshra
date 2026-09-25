@@ -115,3 +115,24 @@ export async function listOrders(): Promise<Order[]> {
 export function cartCount(cart: Cart | null): number {
   return cart?.items.reduce((total, line) => total + line.quantity, 0) ?? 0;
 }
+
+export type SupportLookup = {
+  order: Order & { user_id?: string };
+  history: (Order & { user_id?: string })[];
+};
+
+/**
+ * One order, whoever placed it, for somebody answering a customer.
+ *
+ * An order number is the only way in: there is no call here that takes a
+ * buyer, because a screen that answers "what has this person been buying" is
+ * a screen that will eventually be used to. Checkout logs every one of these
+ * with who asked.
+ */
+export async function lookUpOrder(id: string): Promise<SupportLookup | null> {
+  const response = await checkoutFetch(
+    `/support/orders/${encodeURIComponent(id)}`,
+  );
+  if (!response.ok) return null;
+  return (await response.json()) as SupportLookup;
+}
