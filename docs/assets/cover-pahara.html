@@ -1,0 +1,72 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="cover-base.css">
+<style>
+  body { background:
+    radial-gradient(1100px 650px at 12% 12%, var(--mint) 0%, transparent 62%),
+    radial-gradient(900px 600px at 88% 88%, var(--sky) 0%, transparent 60%), var(--cream); }
+
+  .label { max-width:430px; }
+  .tablet { left:64px; bottom:54px; width:392px; }
+
+  /* The page's own words, typeset rather than screenshotted: a poster is read
+     at a tenth of the size it is drawn, and a screenshot of a paragraph is
+     illegible long before the paragraph is. */
+  .quote { position:absolute; left:520px; top:132px; width:1016px; }
+  .quote .said {
+    background:#fff; border-radius:26px; padding:30px 34px;
+    box-shadow:0 30px 60px -22px rgba(26,21,35,.28);
+    font-size:19px; line-height:1.5;
+  }
+  .quote .said p + p { margin-top:14px; }
+  .quote .said .lead { font-weight:600; }
+  .quote .said .honest { color:var(--ink); opacity:.72; }
+
+  .trail { margin-top:22px; background:rgba(255,255,255,.72); border-radius:26px; padding:26px 32px; }
+  .trail h3 { font-size:12px; letter-spacing:.14em; text-transform:uppercase; opacity:.55; }
+  .trail ol { margin-top:14px; list-style:none; }
+  .trail li { display:flex; gap:12px; margin-top:12px; font-size:15.5px; line-height:1.45; }
+  .trail .n { opacity:.35; min-width:16px; }
+  .trail code { display:block; margin-top:3px; font-size:12.5px; opacity:.6;
+                font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+</style></head><body>
+  <div class="label">
+    <div class="eyebrow">পাহারা · the watch</div>
+    <h2>It reads the cluster, and shows its working.</h2>
+    <p>An agent with the traces, the logs and the metrics — and no way to change
+       any of them. It answers in sentences, and every claim can be followed back
+       to the query it came from.</p>
+  </div>
+
+  <div class="tablet">
+    <div class="camera"></div>
+    <div class="screen"><img src="cap-pahara.png" alt=""></div>
+  </div>
+
+  <div class="quote">
+    <div class="said">
+      <p class="lead">Yes, there is noticeable slowness. The telemetry shows several
+         requests taking over 2 seconds, and some client-facing requests through the
+         Kong gateway taking up to 74 seconds.</p>
+      <p class="honest">However, because the diagnostic traces and service-specific
+         queries encountered connection failures when narrowing down the root cause,
+         the exact service responsible cannot be conclusively determined from the
+         current telemetry alone. I recommend checking the health and database
+         connections of the marketplace and checkout services next.</p>
+    </div>
+
+    <div class="trail">
+      <h3>What it looked at · 5</h3>
+      <ol>
+        <li><span class="n">1</span><span>Checking if any requests have taken longer than 2 seconds.
+          <code>{ duration &gt; 2s }</code></span></li>
+        <li><span class="n">2</span><span>Inspecting the 10-second request to see which spans took the time.
+          <code>dc11869f5c39d9ec8e0157a8a5bcd82b</code></span></li>
+        <li><span class="n">3</span><span>Examining the 2.5-second trace through the gateway, for client-facing latency.
+          <code>9d57fe3e0aac8d1a50bc85ac0976c139</code></span></li>
+        <li><span class="n">4</span><span>Finding slow traces from customer-facing services, excluding itself.
+          <code>{ resource.service.name != "pahara" &amp;&amp; duration &gt; 1s }</code></span></li>
+        <li><span class="n">5</span><span>Checking for slow traces in the marketplace service.
+          <code>{ resource.service.name = "marketplace" &amp;&amp; duration &gt; 1s }</code></span></li>
+      </ol>
+    </div>
+  </div>
+</body></html>

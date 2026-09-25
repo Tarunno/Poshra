@@ -20,6 +20,10 @@
   </sub>
 </p>
 
+<p align="center">
+  <img src="docs/assets/cover-pahara.png" alt="Pahara, the watch: an agent that reads the cluster's traces, logs and metrics, answering a question about slowness and listing the five queries it ran" width="960">
+</p>
+
 ---
 
 ## What it is
