@@ -49,6 +49,14 @@ spec:
             # is the public route where the gateway verifies it.
             - name: CHECKOUT_URL
               value: http://kong-proxy/api/checkout
+            # The slowest thing in the cluster and the only one billed per
+            # request. Every model call becomes a span, and the model's name
+            # is in the URL, so which one answered and which refused is in the
+            # trace without the code having to say so.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observability.svc.cluster.local:4317
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
           ports:
             - name: http
               containerPort: 8000

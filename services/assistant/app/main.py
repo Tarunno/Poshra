@@ -24,6 +24,7 @@ from app.listing import CannotHearHer, ListingDrafter, NothingToDraftFrom
 from app.llm.base import Photograph, Recording
 from app.llm.gemini import DraftFailed, RateLimited
 from app.logging import configure_logging
+from app.telemetry import configure_tracing, tracer
 
 log = logging.getLogger(__name__)
 
@@ -84,6 +85,9 @@ async def lifespan(app: FastAPI):
         CheckoutClient(config.checkout_url, config.request_timeout),
     )
     app.state.drafter = ListingDrafter(app.state.assistant.provider, catalog)
+    # After the app exists, so the middleware wraps the routes below, and
+    # before it serves anything.
+    configure_tracing("assistant", app)
     log.info(
         "assistant ready",
         extra={"provider": config.provider, "models": ", ".join(config.models)},
@@ -127,7 +131,15 @@ async def chat(
     try:
         # The shopper's own session travels with the cart tools, so the
         # assistant acts as them and holds no privilege of its own.
-        answer = await assistant.reply(conversation, cookie=cookie or "")
+        with tracer().start_as_current_span("assistant.turn") as span:
+            span.set_attribute("poshra.turns_sent", len(conversation))
+            answer = await assistant.reply(conversation, cookie=cookie or "")
+            # On the span rather than only in the log line: "why did this one
+            # take thirty seconds" is answered by the tool calls, and the tool
+            # calls are only meaningful next to the spans they caused.
+            span.set_attribute("poshra.tool_calls", answer["tool_calls"])
+            span.set_attribute("poshra.products", len(answer["products"]))
+            span.set_attribute("poshra.checkout_ready", answer["checkout_ready"])
     except RateLimited as error:
         # Being out of quota is not a broken service, and telling someone to
         # wait is a different instruction from telling them it is down.
@@ -184,13 +196,21 @@ async def draft_listing(
 
     drafter: ListingDrafter = request.app.state.drafter
     try:
-        drafted = await drafter.draft(
-            notes=notes,
-            photograph=photograph,
-            recording=recording,
-            craft_hint=craft.strip(),
-            district=district.strip(),
-        )
+        with tracer().start_as_current_span("assistant.draft_listing") as span:
+            # What was sent decides what the call costs and how long it takes:
+            # a photograph and a recording are most of both.
+            span.set_attribute("poshra.had_photo", photograph is not None)
+            span.set_attribute("poshra.had_voice", recording is not None)
+            span.set_attribute("poshra.notes_chars", len(notes))
+            drafted = await drafter.draft(
+                notes=notes,
+                photograph=photograph,
+                recording=recording,
+                craft_hint=craft.strip(),
+                district=district.strip(),
+            )
+            span.set_attribute("poshra.confidence", drafted["confidence"])
+            span.set_attribute("poshra.priced", bool(drafted["suggested_price_minor"]))
     except NothingToDraftFrom as error:
         raise HTTPException(
             status_code=400,
