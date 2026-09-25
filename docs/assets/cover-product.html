@@ -1,34 +1,61 @@
 <!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="cover-base.css">
 <style>
+  /* Taller than 1000 so a monitor, a laptop and a phone can each be a size
+     worth reading rather than three things crowded into a strip. */
+  body { height:1120px; }
   body { background:
-    radial-gradient(1200px 700px at 80% 10%, var(--rose) 0%, transparent 60%),
-    radial-gradient(1000px 620px at 8% 88%, var(--mint) 0%, transparent 62%), var(--saffron); }
-  .laptop { left:40px; bottom:104px; width:860px; }
-  .laptop .base { width:970px; margin-left:-55px; }
-  .b1 { top:70px; right:54px; width:790px; transform:rotate(1.4deg); }
-  .b2 { bottom:92px; right:54px; width:560px; transform:rotate(-1.6deg); }
-  .phone { left:868px; bottom:46px; width:240px; transform:rotate(-3deg); z-index:8; }
+    radial-gradient(1200px 700px at 80% 8%, var(--rose) 0%, transparent 58%),
+    radial-gradient(1000px 640px at 6% 92%, var(--mint) 0%, transparent 62%), var(--saffron); }
+
+  .label { max-width:430px; }
+
+  /* The monitor takes the oversight board: it is a wide, dense page, and the
+     only screen here big enough to show it as an instrument rather than as a
+     pattern of coloured rectangles. */
+  .monitor { position:absolute; top:44px; right:56px; width:880px; }
+  .monitor .panel { background:var(--ink); border-radius:20px; padding:13px 13px 42px;
+                    box-shadow:0 45px 80px -25px rgba(26,21,35,.42); }
+  .monitor .screen { border-radius:8px; overflow:hidden; background:#fff; }
+  .monitor .screen img { display:block; width:100%; height:auto; }
+  .monitor .badge { position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+                    width:54px; height:7px; border-radius:4px; background:rgba(255,255,255,.16); }
+  .monitor .neck { width:150px; height:54px; margin:0 auto;
+                   background:linear-gradient(#241e30,#17131f);
+                   clip-path:polygon(16% 0, 84% 0, 100% 100%, 0 100%); }
+  .monitor .foot { width:330px; height:13px; margin:0 auto; border-radius:0 0 10px 10px;
+                   background:linear-gradient(#211b2c,#131019); }
+
+  .laptop { left:36px; bottom:68px; width:800px; }
+  .laptop .base { width:900px; margin-left:-50px; }
+
+  .b1 { bottom:74px; right:286px; width:540px; transform:rotate(-1.4deg); }
+  .phone { right:64px; bottom:54px; width:238px; transform:rotate(-2deg); }
 </style></head><body>
   <div class="label">
     <div class="eyebrow">পসরা · Poshra</div>
     <h2>Browse, ask, and sell.</h2>
-    <p>A storefront with the maker attached to every piece, an assistant in the corner of
-       every page, and a workshop that shows an artisan what sold.</p>
+    <p>A storefront with the maker attached to every piece, an assistant in the corner
+       of every page, a workshop that fills itself from a photograph — and a view of
+       the whole marketplace for whoever keeps it.</p>
   </div>
 
-  <div class="browser b1">
-    <div class="chrome"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="bar">poshra.local/dashboard</span></div>
-    <img class="shot" src="cap-dashboard.png" alt="">
-  </div>
-
-  <div class="browser b2">
-    <div class="chrome"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="bar">poshra.local/dashboard/listings/jute-floor-mat/edit</span></div>
-    <img class="shot" src="cap-listing.png" alt="">
+  <div class="monitor">
+    <div class="panel">
+      <div class="screen"><img src="cap-oversight.png" alt=""></div>
+      <div class="badge"></div>
+    </div>
+    <div class="neck"></div>
+    <div class="foot"></div>
   </div>
 
   <div class="laptop">
     <div class="lid"><div class="camera"></div><div class="screen"><img src="cap-home.png" alt=""></div></div>
     <div class="base"><div class="notch-base"></div></div>
+  </div>
+
+  <div class="browser b1">
+    <div class="chrome"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="bar">poshra.local/dashboard/listings/jute-floor-mat/edit</span></div>
+    <img class="shot" src="cap-listing.png" alt="">
   </div>
 
   <div class="phone">
