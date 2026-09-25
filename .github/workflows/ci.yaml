@@ -235,34 +235,53 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # merge-base needs to see both this commit and whatever is pinned.
+          fetch-depth: 0
 
       # Argo CD deploys what git says, so "deploying" means committing the new
       # immutable tag. The cluster pulls the change; CI never touches it.
-      - name: Set image tags to this commit
-        working-directory: deploy/k8s/overlays/local
-        run: |
-          sed -i "/^#/! s|newTag: .*|newTag: ${{ github.sha }}|" kustomization.yaml
-          cat kustomization.yaml
-
-      - name: Commit if changed
+      - name: Pin the image tags to this commit
         run: |
           set -euo pipefail
-          if git diff --quiet; then
-            echo "image tags already current"; exit 0
-          fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(deploy): pin images to ${{ github.sha }} [skip ci]"
 
-          # main can still move under a run that is already past the cancel
-          # window — a second run for the same commit, or somebody pushing
-          # while this one built. Rebase onto whatever landed and try again
-          # rather than failing a build whose images are already in the
-          # registry: a pin that never lands is a deploy that never happens.
+          # Recomputed against whatever main says now, never rebased. A pin
+          # commit rewrites the same newTag lines every time, so rebasing one
+          # onto another conflicts by construction — which is how a lost race
+          # turned into a job that failed halfway through a rebase with no way
+          # out. Starting from origin/main each attempt cannot conflict: there
+          # is only ever one change in flight.
           for attempt in 1 2 3; do
-            if git push; then exit 0; fi
-            echo "main moved; rebasing and retrying ($attempt of 3)"
-            git pull --rebase origin main
+            git fetch --quiet origin main
+            git reset --quiet --hard origin/main
+
+            manifest=deploy/k8s/overlays/local/kustomization.yaml
+            pinned=$(grep -m1 'newTag:' "$manifest" | awk '{print $2}')
+
+            if [ "$pinned" = "${{ github.sha }}" ]; then
+              echo "already pinned to this commit"; exit 0
+            fi
+
+            # A run that finishes late must not roll the cluster backwards. If
+            # what is pinned already contains this commit, it is the newer
+            # deploy and this one has nothing to say.
+            if git cat-file -e "${pinned}^{commit}" 2>/dev/null &&
+               git merge-base --is-ancestor "${{ github.sha }}" "$pinned"; then
+              echo "a newer commit ($pinned) is already pinned; leaving it alone"
+              exit 0
+            fi
+
+            sed -i "/^#/! s|newTag: .*|newTag: ${{ github.sha }}|" "$manifest"
+            git commit --quiet -am "chore(deploy): pin images to ${{ github.sha }} [skip ci]"
+
+            if git push --quiet; then
+              echo "pinned to ${{ github.sha }}"
+              exit 0
+            fi
+            echo "main moved while pushing; recomputing ($attempt of 3)"
           done
-          echo "could not push the image pin after three attempts"
+
+          echo "could not pin the image tags after three attempts"
           exit 1
