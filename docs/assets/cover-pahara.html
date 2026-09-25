@@ -1,22 +1,27 @@
 <!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="cover-base.css">
 <style>
+  /* Taller than the other covers on purpose. The tablet is portrait, so its
+     width is governed by the height available — at 1000px the device could
+     never be more than a third of the picture, which is not enough to read
+     the page it is showing. */
+  body { height:1150px; }
   body { background:
     radial-gradient(1100px 650px at 12% 12%, var(--mint) 0%, transparent 62%),
     radial-gradient(900px 600px at 88% 88%, var(--sky) 0%, transparent 60%), var(--cream); }
 
   /* The tablet carries the real page, so it is the largest thing here: a
      device small enough to be decoration is a device not worth drawing. */
-  .label { left:724px; top:58px; max-width:790px; }
-  .tablet { left:58px; top:46px; width:626px; }
+  .label { left:850px; top:62px; max-width:700px; }
+  .tablet { left:44px; top:44px; width:746px; }
 
   /* The page's own words, typeset rather than screenshotted: a poster is read
      at a tenth of the size it is drawn, and a screenshot of a paragraph is
      illegible long before the paragraph is. */
-  .quote { position:absolute; left:724px; top:312px; width:812px; }
+  .quote { position:absolute; left:850px; top:330px; width:706px; }
   .quote .said {
     background:#fff; border-radius:26px; padding:26px 30px;
     box-shadow:0 30px 60px -22px rgba(26,21,35,.28);
-    font-size:17.5px; line-height:1.5;
+    font-size:17px; line-height:1.52;
   }
   .quote .said p + p { margin-top:14px; }
   .quote .said .lead { font-weight:600; }
@@ -29,6 +34,8 @@
   .trail .n { opacity:.35; min-width:16px; }
   .trail code { display:block; margin-top:3px; font-size:11.5px; opacity:.6;
                 font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .footnote { margin-top:20px; font-size:14px; line-height:1.5; opacity:.6; }
+  .footnote strong { font-weight:600; opacity:.85; }
 </style></head><body>
   <div class="label">
     <div class="eyebrow">পাহারা · the watch</div>
@@ -70,5 +77,12 @@
           <code>{ resource.service.name = "marketplace" &amp;&amp; duration &gt; 1s }</code></span></li>
       </ol>
     </div>
+
+    <p class="footnote">
+      <strong>Eight looks, one answer.</strong> Two of the six models it can use
+      were out of quota that morning; it walked past them and carried on. It can
+      read every trace, log line and metric in the cluster, and change none of
+      them.
+    </p>
   </div>
 </body></html>
