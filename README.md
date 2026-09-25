@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/hero.png" alt="Poshra on three screens: the shop with craft filters on a monitor, an artisan speaking a listing into being on a laptop, and the mobile storefront on a phone" width="960">
+  <img src="docs/assets/hero.png" alt="Poshra on four screens: the shop with craft filters on a monitor, an artisan speaking a listing into being on a laptop, the mobile storefront on a phone, and Pahara explaining what the cluster has been doing on a tablet" width="960">
 </p>
 
 <p align="center">

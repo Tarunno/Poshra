@@ -114,12 +114,43 @@
         background: rgba(255, 255, 255, 0.14);
       }
 
+      /* ---------- tablet (front right) ----------
+         An even bezel all round and no button: what makes a slab read as a
+         tablet rather than a large phone. */
+      .tablet {
+        position: absolute;
+        right: 44px;
+        bottom: 96px;
+        width: 336px;
+        background: var(--ink);
+        border-radius: 26px;
+        padding: 12px;
+        box-shadow: 0 45px 80px -20px rgba(26, 21, 35, 0.45);
+        transform: rotate(1.6deg);
+      }
+      .tablet .screen {
+        border-radius: 16px;
+        overflow: hidden;
+        background: #fff;
+      }
+      .tablet .screen img { display: block; width: 100%; }
+      .tablet .camera {
+        position: absolute;
+        top: 5px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #3b3542;
+      }
+
       /* ---------- phone (front right) ---------- */
       .phone {
         position: absolute;
-        right: 186px;
+        right: 400px;
         bottom: 56px;
-        width: 258px;
+        width: 250px;
         background: var(--ink);
         border-radius: 38px;
         padding: 9px;
@@ -170,6 +201,11 @@
           <div class="screen"><img src="cap-drafting.png" alt="" /></div>
         </div>
         <div class="base"><div class="notch-base"></div></div>
+      </div>
+
+      <div class="tablet">
+        <div class="camera"></div>
+        <div class="screen"><img src="cap-pahara.png" alt="" /></div>
       </div>
 
       <div class="phone">
