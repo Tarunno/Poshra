@@ -26,6 +26,8 @@ INSTALLED_APPS = [
     "accounts",
     "catalog",
     "sales",
+    # The marketplace seen from above: read-only, administrators only.
+    "oversight",
 ]
 
 # Kafka: the sales read model is built from the order stream. Empty here means
