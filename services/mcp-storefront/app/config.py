@@ -24,6 +24,12 @@ def _list(name: str) -> list[str]:
 @dataclass(frozen=True)
 class Config:
     catalog_url: str
+    # Through the gateway, so the shopper's own token is verified there exactly
+    # as it is for the storefront. Empty turns the cart tools off entirely.
+    checkout_url: str
+    # Where a person finishes an order. The model never takes money; it hands
+    # over to this page, so the URL must be the browser's, not the cluster's.
+    storefront_url: str
     request_timeout: float
     # The transport refuses a request whose Host or Origin it does not
     # recognise. That is not decoration: an MCP server is a URL a browser on
@@ -37,6 +43,8 @@ class Config:
     def load(cls) -> Config:
         return cls(
             catalog_url=_require("CATALOG_URL").rstrip("/"),
+            checkout_url=os.environ.get("CHECKOUT_URL", "").strip().rstrip("/"),
+            storefront_url=os.environ.get("STOREFRONT_URL", "").strip().rstrip("/"),
             request_timeout=float(os.environ.get("CATALOG_TIMEOUT", "5")),
             allowed_hosts=_list("MCP_ALLOWED_HOSTS"),
             allowed_origins=_list("MCP_ALLOWED_ORIGINS"),

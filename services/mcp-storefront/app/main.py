@@ -23,6 +23,7 @@ from app.catalog import CatalogClient
 from app.config import Config, ConfigError
 from app.logging import configure_logging
 from app.server import build_server
+from app.shopper import CheckoutClient, TokenStillLive
 from app.telemetry import configure_tracing
 
 configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
@@ -34,7 +35,19 @@ except ConfigError as error:
     log.error("bad configuration", extra={"error": str(error)})
     raise
 
-server = build_server(CatalogClient(config.catalog_url, config.request_timeout))
+# Without a CHECKOUT_URL the cart tools are not registered, so a deployment
+# that has no checkout advertises three tools rather than six that fail.
+checkout = (
+    CheckoutClient(config.checkout_url, config.request_timeout) if config.checkout_url else None
+)
+still_live = TokenStillLive(config.catalog_url, config.request_timeout)
+
+server = build_server(
+    CatalogClient(config.catalog_url, config.request_timeout),
+    checkout,
+    still_live,
+    storefront_url=config.storefront_url,
+)
 
 
 app = server.streamable_http_app(

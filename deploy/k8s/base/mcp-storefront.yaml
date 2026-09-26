@@ -6,11 +6,11 @@
 # need sticky sessions at the gateway and would drop every open conversation
 # on deploy.
 #
-# Read-only, all three tools, over data the storefront already serves to
-# anonymous visitors. That is why the route in front of this does not require
-# a sign-in. When the cart tools arrive they will, and the boundary will be
-# visible right here: this manifest has no CHECKOUT_URL because this service
-# cannot yet act on anybody's behalf.
+# Six tools. Three read the catalogue and need nobody, so an agent with no
+# token browses exactly what an anonymous visitor can. Three act for a person,
+# and the line they must not cross is the one this whole feature is built
+# around: an agent may fill a cart and may never spend money. prepare_checkout
+# totals the basket and returns a link to the page where a human pays.
 apiVersion: v1
 kind: Service
 metadata:
@@ -52,6 +52,17 @@ spec:
             # limit that matters is on the public /mcp route.
             - name: CATALOG_URL
               value: http://kong-proxy/internal/marketplace
+            # The public route, not the internal one: the shopper's own bearer
+            # token travels with the request and is verified there, so the cart
+            # this service touches is theirs and never anybody else's. Remove
+            # this variable and the three cart tools are not registered at all.
+            - name: CHECKOUT_URL
+              value: http://kong-proxy/api/checkout
+            # Where a person pays. The model never takes money — it hands over
+            # to this page — so the URL has to be the browser's, not the
+            # cluster's.
+            - name: STOREFRONT_URL
+              value: http://192.168.110.201
             # Host and Origin checks stay off: the gateway is the only way in,
             # enforced below by NetworkPolicy. A list that must be right for
             # the service to answer at all is a list that will be wrong at
