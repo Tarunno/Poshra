@@ -213,21 +213,26 @@ services:
         # assistant's SSE bug waiting to happen again.
         response_buffering: false
         plugins:
-          # No sign-in required: these three tools read the same catalog an
-          # anonymous visitor already browses. The plugin still runs, in
-          # strip-only mode, so nothing outside can hand us an X-User-Id and
-          # be believed. The cart tools will need the real thing.
+          # Authentication is optional, exactly as it is for the storefront.
+          # An agent with no token browses the public catalogue; one carrying
+          # the token a shopper minted gets that shopper's cart. A broken or
+          # expired token is still rejected, so the agent is told to ask for a
+          # new one rather than silently losing the cart.
           - name: poshra-identity
             config:
-              strip_only: true
+              public_key_b64: "{vault://env/poshra-jwt-public-key}"
+              issuer: poshra-marketplace
+              audience: poshra-api
+              access_cookie: poshra_at
           - name: poshra-leaky-bucket
             config:
-              # By address, because there is nobody to attribute this to yet.
-              # One turn of an agent is several tool calls, so the burst is
-              # what matters more than the rate.
+              # One turn of an agent is several tool calls, so the burst
+              # matters more than the rate. Keyed by user where there is one,
+              # falling back to the address for anonymous agents.
               rate: 2
               burst: 20
-              limit_by: ip
+              limit_by: header
+              header_name: X-User-Id
 
   # Cart and orders. Every endpoint here needs a buyer, so the identity plugin
   # is set to require authentication rather than allow anonymous browsing.

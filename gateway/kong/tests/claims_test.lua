@@ -105,5 +105,26 @@ test("identity falls back to buyer when the role claim is missing", function()
   assert(claims.identity(valid({ role = NONE })).role == "buyer")
 end)
 
+test("identity carries the token id and scope of an agent token", function()
+  local id = claims.identity(valid({ jti = "0192f2c0-0000-7000-8000-000000000001", scope = "agent" }))
+  assert(id.token_id == "0192f2c0-0000-7000-8000-000000000001")
+  assert(id.scope == "agent")
+end)
+
+test("identity omits the token id when the token has none", function()
+  -- A browser's session token carries no jti. Downstream reads its absence as
+  -- "a person at a keyboard", so it must be absent rather than empty.
+  local id = claims.identity(valid())
+  assert(id.token_id == nil)
+  assert(id.scope == nil)
+end)
+
+test("identity ignores a token id that is not a string", function()
+  -- A forged token could claim anything; a number where a string belongs must
+  -- not become a header the services then look up.
+  assert(claims.identity(valid({ jti = 42, scope = true })).token_id == nil)
+  assert(claims.identity(valid({ jti = 42, scope = true })).scope == nil)
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

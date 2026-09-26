@@ -72,10 +72,18 @@ function _M.validate(claims, opts, now)
 end
 
 --- The identity a verified token conveys downstream.
+--
+-- `token_id` and `scope` are passed on for the tokens a shopper hands to an AI
+-- agent. The gateway can tell that such a token was signed and has not
+-- expired; it cannot tell that the shopper revoked it, because that lives in a
+-- row the gateway never reads. Forwarding the id is what lets the services
+-- that act on somebody's behalf go and ask.
 function _M.identity(claims)
   return {
     id = claims.sub,
     role = type(claims.role) == "string" and claims.role or "buyer",
+    token_id = type(claims.jti) == "string" and claims.jti or nil,
+    scope = type(claims.scope) == "string" and claims.scope or nil,
   }
 end
 

@@ -43,6 +43,10 @@ return {
           { strip_only = { type = "boolean", required = true, default = false } },
           { user_header = { type = "string", required = true, default = "X-User-Id" } },
           { role_header = { type = "string", required = true, default = "X-User-Role" } },
+          -- Set only when the token carries them, which in practice means the
+          -- long-lived tokens a shopper gives to an agent.
+          { token_id_header = { type = "string", required = true, default = "X-Token-Id" } },
+          { token_scope_header = { type = "string", required = true, default = "X-Token-Scope" } },
         },
       },
     },
