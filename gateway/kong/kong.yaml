@@ -185,6 +185,50 @@ services:
               limit_by: header
               header_name: X-User-Id
 
+  # The storefront as an MCP server. One endpoint carries the whole protocol:
+  # an agent POSTs JSON-RPC to /mcp and gets tools/list, tools/call and the
+  # rest back. The path is deliberately short and unversioned, because it is a
+  # URL a person pastes into their agent.
+  - name: mcp-storefront
+    url: http://mcp-storefront:8000
+    connect_timeout: 2000
+    # A tool call is one catalog query, not a model call — nothing here waits
+    # on an LLM. Generous rather than long, so a slow search still answers.
+    read_timeout: 30000
+    write_timeout: 30000
+    retries: 0
+    routes:
+      - name: mcp-storefront
+        paths:
+          - /mcp
+        # The upstream serves the protocol at /mcp itself, so the path is
+        # passed through rather than stripped. Note the absence of `methods`:
+        # a route that names them outranks a longer path prefix, which is how
+        # a POST rule on "/" once swallowed every API call in the cluster.
+        strip_path: false
+        protocols: [http, https]
+        # The transport answers with plain JSON today and may stream tomorrow
+        # — elicitation and sampling both need the server to talk mid-call.
+        # Buffering here would hold a stream until it ended, which is the
+        # assistant's SSE bug waiting to happen again.
+        response_buffering: false
+        plugins:
+          # No sign-in required: these three tools read the same catalog an
+          # anonymous visitor already browses. The plugin still runs, in
+          # strip-only mode, so nothing outside can hand us an X-User-Id and
+          # be believed. The cart tools will need the real thing.
+          - name: poshra-identity
+            config:
+              strip_only: true
+          - name: poshra-leaky-bucket
+            config:
+              # By address, because there is nobody to attribute this to yet.
+              # One turn of an agent is several tool calls, so the burst is
+              # what matters more than the rate.
+              rate: 2
+              burst: 20
+              limit_by: ip
+
   # Cart and orders. Every endpoint here needs a buyer, so the identity plugin
   # is set to require authentication rather than allow anonymous browsing.
   - name: checkout

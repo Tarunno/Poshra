@@ -192,6 +192,7 @@ jobs:
         test-gateway,
         test-inventory,
         test-checkout,
+        test-mcp-storefront,
       ]
     # Run when the needed tests pass or were skipped, but not if one failed.
     if: always() && !contains(needs.*.result, 'failure') && github.event_name == 'push'
@@ -219,6 +220,9 @@ jobs:
           - service: assistant
             context: services
             dockerfile: services/assistant/Dockerfile
+          - service: mcp-storefront
+            context: services
+            dockerfile: services/mcp-storefront/Dockerfile
     steps:
       - uses: actions/checkout@v4
 

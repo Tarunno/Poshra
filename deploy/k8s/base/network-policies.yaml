@@ -123,6 +123,32 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: mcp-storefront-accepts-gateway-only
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-storefront
+  policyTypes: [Ingress]
+  ingress:
+    # This is what lets the transport's own Host and Origin checks stay off.
+    # An MCP endpoint is a URL a browser can also reach, so "only the gateway
+    # gets in" has to be enforced rather than assumed.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kong
+      ports:
+        - { protocol: TCP, port: 8000 }
+    # Kubelet probes come from the node itself.
+    - from:
+        - ipBlock:
+            cidr: 192.168.110.0/24
+      ports:
+        - { protocol: TCP, port: 8000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: minio-accepts-its-writer-and-the-gateway
 spec:
   podSelector:

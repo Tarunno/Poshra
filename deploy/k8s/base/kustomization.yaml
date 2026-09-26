@@ -18,6 +18,7 @@ resources:
   - marketplace.yaml
   - assistant.yaml
   - pahara.yaml
+  - mcp-storefront.yaml
   - sales-consumer.yaml
   - stock-reconciler.yaml
   - inventory.yaml
@@ -76,4 +77,6 @@ images:
   - name: ghcr.io/tarunno/poshra/checkout
     newTag: dev
   - name: ghcr.io/tarunno/poshra/assistant
+    newTag: dev
+  - name: ghcr.io/tarunno/poshra/mcp-storefront
     newTag: dev

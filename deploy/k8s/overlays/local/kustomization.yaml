@@ -21,3 +21,5 @@ images:
     newTag: 16b7078ca276e658f56a1aec2ccac5fd604f474c
   - name: ghcr.io/tarunno/poshra/checkout
     newTag: 16b7078ca276e658f56a1aec2ccac5fd604f474c
+  - name: ghcr.io/tarunno/poshra/mcp-storefront
+    newTag: 16b7078ca276e658f56a1aec2ccac5fd604f474c

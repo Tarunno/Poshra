@@ -1,0 +1,94 @@
+# The storefront as an MCP server: the catalog, as tools an agent can call.
+#
+# Two replicas, which is the point. The Streamable HTTP transport here runs
+# stateless — every request carries what it needs — so no agent is tied to a
+# pod and a rollout costs nobody their session. A stateful MCP server would
+# need sticky sessions at the gateway and would drop every open conversation
+# on deploy.
+#
+# Read-only, all three tools, over data the storefront already serves to
+# anonymous visitors. That is why the route in front of this does not require
+# a sign-in. When the cart tools arrive they will, and the boundary will be
+# visible right here: this manifest has no CHECKOUT_URL because this service
+# cannot yet act on anybody's behalf.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-storefront
+spec:
+  selector:
+    app.kubernetes.io/name: mcp-storefront
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-storefront
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-storefront
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mcp-storefront
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: mcp-storefront
+          image: ghcr.io/tarunno/poshra/mcp-storefront:dev
+          env:
+            # The internal route, like the storefront's own server rendering:
+            # one pod answers for many agents, so a per-client limit at this
+            # hop would throttle the service rather than any one caller. The
+            # limit that matters is on the public /mcp route.
+            - name: CATALOG_URL
+              value: http://kong-proxy/internal/marketplace
+            # Host and Origin checks stay off: the gateway is the only way in,
+            # enforced below by NetworkPolicy. A list that must be right for
+            # the service to answer at all is a list that will be wrong at
+            # three in the morning.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observability.svc.cluster.local:4317
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8000
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            # Deliberately not a catalog check. A marketplace outage must not
+            # also take every MCP replica out of rotation — the tools would
+            # return an error the agent can read, which is more useful than a
+            # gateway 503 it cannot.
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 25m, memory: 128Mi }
+            limits: { memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 32Mi }
