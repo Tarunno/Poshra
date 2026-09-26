@@ -1,0 +1,92 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="cover-base.css">
+<style>
+  /* The page a shopper uses beside the protocol an agent speaks: the same
+     feature from the two ends, because neither half means much alone. */
+  /* One cluster, not three islands: the two screens lean on each other at the
+     bottom left, the terminal anchors the right, and the air sits at the top
+     where the heading can use it. */
+  body { height:980px; }
+  body { background:
+    radial-gradient(1150px 640px at 90% 12%, var(--sky) 0%, transparent 60%),
+    radial-gradient(900px 560px at 2% 96%, var(--mint) 0%, transparent 62%), var(--cream); }
+
+  .label { max-width:440px; }
+
+  .term { position:absolute; right:56px; top:366px; width:700px;
+          border-radius:14px; overflow:hidden; background:#16121f;
+          box-shadow:0 45px 85px -25px rgba(26,21,35,.5); }
+  .term .bar { height:30px; background:#241e30; display:flex; align-items:center;
+               gap:7px; padding:0 13px; }
+  .term .bar span.t { margin-left:10px; font-size:10px; color:rgba(255,255,255,.45);
+                      font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .term pre { margin:0; padding:18px 20px 21px; font-size:11.8px; line-height:1.72;
+              font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+              color:#e7e2f0; white-space:pre-wrap; }
+  .c  { color:#8c83a3; }            /* comment */
+  .m  { color:#ffd479; }            /* method */
+  .k  { color:#8fd6ff; }            /* key */
+  .s  { color:#b9f6c5; }            /* string */
+  .no { color:#ff9fae; }            /* the refusals */
+  .hi { color:#fff; font-weight:600; }
+
+  /* Both frames show the part that explains the bargain and the tokens under
+     it, rather than shrinking a long page to illegible. */
+  .laptop { left:48px; bottom:84px; width:700px; }
+  .laptop .base { width:790px; margin-left:-45px; }
+  .laptop .crop { width:674px; height:414px; }
+  .laptop .crop img { width:674px; top:-72px; left:0; }
+
+  /* Leaning on the laptop: one page, two shapes. */
+  .phone { left:616px; bottom:50px; width:215px; transform:rotate(-2deg); }
+  .phone .crop { width:195px; height:400px; border-radius:28px; }
+  .phone .crop img { width:195px; top:-68px; left:0; }
+</style></head><body>
+  <div class="label">
+    <div class="eyebrow">পসরা · Agent ready</div>
+    <h2>A shop an assistant<br>can actually use.</h2>
+    <p>A remote MCP server: the catalogue, the crafts and the basket as tools
+       any agent discovers at runtime. The shopper mints a token, and takes it
+       back whenever they like.</p>
+  </div>
+
+  <div class="term">
+    <div class="bar">
+      <span class="dot" style="background:#ff5f57"></span>
+      <span class="dot" style="background:#febc2e"></span>
+      <span class="dot" style="background:#28c840"></span>
+      <span class="t">POST http://192.168.110.201/mcp &nbsp;·&nbsp; Authorization: Bearer …</span>
+    </div>
+<pre><span class="c">→ the agent asks what this shop can do</span>
+<span class="m">tools/list</span>
+  search_products   list_crafts   get_product      <span class="c">readOnly</span>
+  view_cart         add_to_cart   prepare_checkout <span class="c">needs a shopper</span>
+
+<span class="c">→ and then does some shopping</span>
+<span class="m">tools/call</span> add_to_cart { <span class="k">"slug"</span>: <span class="s">"jute-floor-mat-indigo-stripe"</span>, <span class="k">"quantity"</span>: 2 }
+  <span class="k">"added"</span>: <span class="s">"Jute floor mat, indigo stripe"</span>
+  <span class="k">"total_minor"</span>: 860000   <span class="c">// ৳8,600</span>
+
+<span class="m">tools/call</span> prepare_checkout {}
+  <span class="k">"checkout_url"</span>: <span class="s">"http://192.168.110.201/checkout"</span>
+  <span class="k">"charged"</span>: <span class="hi">false</span>   <span class="c">← it fills a basket. it never spends a taka.</span>
+
+<span class="c">→ the shopper revokes the token</span>
+<span class="m">tools/call</span> view_cart {}
+  <span class="k">"isError"</span>: <span class="no">true</span>
+  <span class="no">This token has been revoked. The shopper can create a new one.</span>
+</pre>
+  </div>
+
+  <div class="laptop">
+    <div class="lid"><div class="camera"></div>
+      <div class="screen"><div class="crop"><img src="cap-agents.png" alt=""></div></div>
+    </div>
+    <div class="base"><div class="notch-base"></div></div>
+  </div>
+
+  <div class="phone">
+    <div class="screen"><div class="island"></div>
+      <div class="crop"><img src="cap-agents-mobile.png" alt=""></div>
+    </div>
+  </div>
+</body></html>

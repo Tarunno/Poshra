@@ -33,6 +33,12 @@
 ---
 
 <p align="center">
+  <img src="docs/assets/cover-agents.png" alt="Poshra as an MCP server: a terminal showing an agent asking tools/list, adding two jute floor mats to a basket, and prepare_checkout answering with a total and charged false — beside the page where a shopper mints the token, on a laptop and a phone" width="960">
+</p>
+
+---
+
+<p align="center">
   <img src="docs/assets/cover-observability.png" alt="A Grafana trace from Kong through checkout into the Kafka consumers, the Hubble service map, a rate-errors-duration dashboard, and Argo CD with three applications synced" width="960">
 </p>
 
