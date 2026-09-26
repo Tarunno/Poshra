@@ -31,7 +31,7 @@ export default async function AgentsPage() {
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
           Connect an AI assistant
         </h1>
-        <KanthaRule />
+        <KanthaRule className="h-3 w-full opacity-60" />
       </header>
 
       <div className="mt-8">
