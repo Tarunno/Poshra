@@ -32,6 +32,7 @@ migrate: ## Apply Django migrations for marketplace (one-off container)
 py-check: ## Run exactly what CI runs for the Python services (lint, format, tests)
 	cd services/marketplace && uv run ruff check . && uv run ruff format --check . && uv run pytest -q
 	cd services/assistant && uv run ruff check . && uv run ruff format --check . && uv run pytest -q
+	cd services/mcp-storefront && uv run ruff check . && uv run ruff format --check . && uv run pytest -q
 
 kong-validate: ## Validate gateway/kong/kong.yaml
 	@python3 gateway/kong/tests/no_duplicate_keys.py gateway/kong/kong.yaml

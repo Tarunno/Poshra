@@ -27,6 +27,7 @@ jobs:
       inventory: ${{ steps.filter.outputs.inventory }}
       checkout: ${{ steps.filter.outputs.checkout }}
       assistant: ${{ steps.filter.outputs.assistant }}
+      mcp-storefront: ${{ steps.filter.outputs.mcp-storefront }}
       deploy: ${{ steps.filter.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +49,8 @@ jobs:
               - 'services/inventory/gen/**'
             assistant:
               - 'services/assistant/**'
+            mcp-storefront:
+              - 'services/mcp-storefront/**'
             deploy:
               - 'deploy/k8s/**'
 
@@ -87,6 +90,26 @@ jobs:
       - run: uv run ruff format --check .
       # No API key: the tests replay scripted model responses, so the loop is
       # covered without paying for it or depending on the network.
+      - run: uv run pytest -q
+
+  test-mcp-storefront:
+    name: test mcp-storefront
+    needs: changes
+    if: needs.changes.outputs.mcp-storefront == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/mcp-storefront
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      # The catalog is stubbed, so the protocol is exercised end to end
+      # without a marketplace to run against.
       - run: uv run pytest -q
 
   test-gateway:
