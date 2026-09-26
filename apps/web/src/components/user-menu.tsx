@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Heart, LayoutDashboard, LogOut, Package } from "lucide-react";
+import { Bot, Heart, LayoutDashboard, LogOut, Package } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +54,14 @@ export function UserMenu({ user }: { user: User }) {
         <DropdownMenuItem asChild>
           <Link href="/saved" className="cursor-pointer">
             <Heart className="size-4" /> Saved pieces
+          </Link>
+        </DropdownMenuItem>
+        {/* Where a shopper connects an AI assistant to their own account.
+            It belongs beside the other account settings rather than in the
+            header: it is something you set up once and rarely revisit. */}
+        <DropdownMenuItem asChild>
+          <Link href="/dashboard/agents" className="cursor-pointer">
+            <Bot className="size-4" /> Assistants
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

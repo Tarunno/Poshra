@@ -1,3 +1,3 @@
 # assistant (Python)
 
-Claude-powered shopping chat and photo/Bangla → listing generation. MCP client of mcp-storefront.
+Shopping chat, and photo/Bangla → listing generation. Calls the catalogue and the cart directly; the MCP server beside it (`services/mcp-storefront`) serves outside agents.

@@ -113,7 +113,7 @@ export default async function HomePage() {
           icon={Sparkles}
           eyebrow="Agent ready"
           title="Shoppable by AI agents."
-          body="An MCP server exposes search, carts and orders, so an assistant can buy for a customer — with confirmation before anything is ordered."
+          body="An MCP server exposes the catalogue and the basket, so an assistant can shop for a customer — and can never spend their money."
         />
         <TintedCard
           color="sky"
