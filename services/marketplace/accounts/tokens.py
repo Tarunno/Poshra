@@ -27,6 +27,13 @@ from django.conf import settings
 ALGORITHM = "RS256"
 REFRESH_TOKEN_BYTES = 32
 
+# A browser's access token lives ten minutes and is refreshed silently. An
+# agent has nobody to refresh it: the shopper pasted it in and walked away, so
+# a short life means a tool that stops working next Tuesday for no visible
+# reason. Thirty days is long enough to be useful and short enough to bound
+# the damage of a token left in somebody's config file.
+AGENT_TOKEN_TTL_DAYS = 30
+
 
 @dataclass(frozen=True)
 class AccessToken:
@@ -62,6 +69,46 @@ def issue_access_token(user) -> AccessToken:
         headers={"kid": settings.JWT_KEY_ID},
     )
     return AccessToken(value=value, expires_at=expires_at)
+
+
+@dataclass(frozen=True)
+class AgentTokenIssue:
+    """What the caller needs: the token to show once, and the row to store."""
+
+    value: str
+    token_id: str
+    expires_at: datetime
+
+
+def issue_agent_token(user, *, token_id: str) -> AgentTokenIssue:
+    """Sign a long-lived token for an AI agent acting as `user`.
+
+    Same issuer, same audience and the same key as a browser's token, so the
+    gateway verifies it with no special case and services receive the identity
+    they already understand. Two claims set it apart: `scope` says this is an
+    agent rather than a person at a keyboard, and `jti` is the row in
+    AgentToken, which is what makes it revocable.
+    """
+    issued_at = _now()
+    expires_at = issued_at + timedelta(days=AGENT_TOKEN_TTL_DAYS)
+    payload = {
+        "iss": settings.JWT_ISSUER,
+        "aud": settings.JWT_AUDIENCE,
+        "sub": str(user.id),
+        "role": user.role,
+        "email": user.email,
+        "scope": "agent",
+        "iat": int(issued_at.timestamp()),
+        "exp": int(expires_at.timestamp()),
+        "jti": token_id,
+    }
+    value = jwt.encode(
+        payload,
+        settings.JWT_PRIVATE_KEY,
+        algorithm=ALGORITHM,
+        headers={"kid": settings.JWT_KEY_ID},
+    )
+    return AgentTokenIssue(value=value, token_id=token_id, expires_at=expires_at)
 
 
 def decode_access_token(token: str) -> dict:

@@ -71,7 +71,12 @@ REST_FRAMEWORK = {
     # rely on being unreachable directly.
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 24,
-    "DEFAULT_THROTTLE_RATES": {"auth": env_str("AUTH_THROTTLE_RATE", "30/min")},
+    "DEFAULT_THROTTLE_RATES": {
+        "auth": env_str("AUTH_THROTTLE_RATE", "30/min"),
+        # Minting a credential is rare and deliberate; a page that needs to
+        # do it in bursts is a page with a bug.
+        "agent-tokens": env_str("AGENT_TOKEN_THROTTLE_RATE", "10/min"),
+    },
 }
 
 MIDDLEWARE = [

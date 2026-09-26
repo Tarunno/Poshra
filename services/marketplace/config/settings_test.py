@@ -43,4 +43,7 @@ PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 # Throttle counters live in a process-wide cache, so dozens of logins across
 # the suite would trip the limit and make unrelated tests fail. Throttling is
 # exercised deliberately in test_throttling instead.
-REST_FRAMEWORK = {**REST_FRAMEWORK, "DEFAULT_THROTTLE_RATES": {"auth": None}}  # noqa: F405
+REST_FRAMEWORK = {  # noqa: F405
+    **REST_FRAMEWORK,  # noqa: F405
+    "DEFAULT_THROTTLE_RATES": {"auth": None, "agent-tokens": None},
+}

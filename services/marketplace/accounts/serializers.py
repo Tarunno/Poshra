@@ -6,7 +6,7 @@ produces consistent error bodies.
 
 from rest_framework import serializers
 
-from accounts.models import Role, User
+from accounts.models import AgentToken, Role, User
 
 MIN_PASSWORD_LENGTH = 12
 
@@ -29,3 +29,23 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ("id", "email", "full_name", "role")
         read_only_fields = fields
+
+
+class AgentTokenSerializer(serializers.ModelSerializer):
+    """A token as the shopper sees it in their settings — never its value."""
+
+    active = serializers.BooleanField(source="is_active", read_only=True)
+
+    class Meta:
+        model = AgentToken
+        fields = ("id", "label", "created_at", "expires_at", "last_used_at", "revoked_at", "active")
+        read_only_fields = fields
+
+
+class AgentTokenCreateSerializer(serializers.Serializer):
+    label = serializers.CharField(max_length=80, trim_whitespace=True)
+
+    def validate_label(self, value: str) -> str:
+        if not value.strip():
+            raise serializers.ValidationError("Give the token a name you will recognise.")
+        return value.strip()

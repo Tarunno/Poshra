@@ -100,3 +100,44 @@ class RefreshToken(models.Model):
     @property
     def is_usable(self) -> bool:
         return self.revoked_at is None and self.used_at is None and self.expires_at > timezone.now()
+
+
+class AgentToken(models.Model):
+    """A credential a shopper pastes into an AI agent.
+
+    The token itself is a JWT the gateway verifies like any other, so an agent
+    calling Poshra costs no extra round trip. What is stored here is only its
+    `jti` — never the token — which is what makes it listable and revocable.
+    A shopper sees the token once, at creation, and copies it; there is nothing
+    to recover afterwards because there is nothing kept.
+
+    The awkward part of a stateless token is written down rather than wished
+    away: the gateway can verify a signature without asking anyone, which is
+    exactly why it cannot know this row was revoked. So the tools that act on
+    somebody's behalf ask, and the tools that only read the public catalogue do
+    not. Revocation is therefore immediate for the operations that can cause
+    harm, and irrelevant for the ones that cannot.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="agent_tokens")
+    # What the shopper called it: "Claude on my laptop". Theirs to recognise,
+    # so it is free text rather than anything we derive.
+    label = models.CharField(max_length=80)
+    created_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+    # Set the first time the token is used and then at most once a minute —
+    # the caller caches its check, so this is a rough "recently", not a log.
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "accounts_agent_token"
+        ordering = ("-created_at",)
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.user.email})"
+
+    @property
+    def is_active(self) -> bool:
+        return self.revoked_at is None and self.expires_at > timezone.now()
