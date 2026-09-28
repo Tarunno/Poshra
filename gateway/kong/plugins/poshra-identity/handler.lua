@@ -12,15 +12,27 @@
 local jwt_parser = require "kong.plugins.jwt.jwt_parser"
 local claims_validator = require "kong.plugins.poshra-identity.claims"
 local openssl_base64 = require "ngx.base64"
-local uuid = require("kong.tools.uuid").uuid
 
 local kong = kong
 local ngx = ngx
 
 local Identity = {
-  -- After the bundled auth plugins (jwt is 1450) so an explicit credential
-  -- still wins, and before rate limiting (910) so limits can key on the user.
-  PRIORITY = 1420,
+  -- Above every bundled plugin, because scrubbing untrusted headers has to
+  -- happen before anything reads them.
+  --
+  -- correlation-id runs at 100001 and, finding no X-Request-ID, generates a
+  -- trusted one and sets it on the request. Underneath, that is
+  -- ngx.req.set_header, which rewrites the live request -- so a plugin running
+  -- after it cannot tell the gateway's own id from one the client sent, and
+  -- clearing the header there deleted the trusted value instead of the forged
+  -- one. Running first means the client's copy is gone before correlation-id
+  -- looks, so the id it generates is the id the service logs and the id the
+  -- client is handed.
+  --
+  -- Still above rate limiting (910), so limits can key on the user. The
+  -- trade-off is that this now runs before the bundled auth plugins too; none
+  -- are configured, and identity here is read from the token directly.
+  PRIORITY = 100002,
   VERSION = "0.1.0",
 }
 
@@ -36,11 +48,12 @@ local SPOOFABLE_HEADERS = {
   "X-Token-Scope",
   "X-Consumer-Id",
   "X-Consumer-Username",
-  -- X-Request-ID is handled separately below. Clearing it here is what broke
-  -- correlation: see the note in access().
+  -- The correlation id is the gateway's to decide; a client-supplied value
+  -- would let anyone forge or collide with another request's logs. Stripping
+  -- it only works because this plugin now runs before correlation-id -- see
+  -- PRIORITY below.
+  "X-Request-ID",
 }
-
-local REQUEST_ID_HEADER = "X-Request-ID"
 
 local function decode_public_key(conf)
   local pem = openssl_base64.decode_base64url(conf.public_key_b64)
@@ -78,20 +91,6 @@ end
 function Identity:access(conf)
   for _, header in ipairs(SPOOFABLE_HEADERS) do
     kong.service.request.clear_header(header)
-  end
-
-  -- The correlation id is still the gateway's to decide, but refusing a forged
-  -- one by clearing it was wrong. The bundled correlation-id plugin runs first
-  -- (priority 100001) and has already put a gateway-generated id on the
-  -- upstream request, so clearing it left every service to invent its own —
-  -- and the id echoed back to the client then appeared in no log anywhere.
-  --
-  -- Replacement, not deletion. correlation-id reads the *original* request, so
-  -- a value the client sent is one it keeps and forwards; when there is one,
-  -- it is overwritten here with ours. A request that arrived without the
-  -- header already carries a trusted id by this point, and is left alone.
-  if kong.request.get_header(REQUEST_ID_HEADER) then
-    kong.service.request.set_header(REQUEST_ID_HEADER, uuid())
   end
 
   if conf.strip_only then
