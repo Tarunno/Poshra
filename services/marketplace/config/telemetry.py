@@ -55,6 +55,22 @@ def configure_tracing(service: str, *, django: bool = False) -> None:
 
         PsycopgInstrumentor().instrument(enable_commenter=False)
 
+        # Puts the active span's ids on every LogRecord as otelTraceID and
+        # otelSpanID. The JSON formatter already looks for exactly those two
+        # attributes (config/observability.py), so nothing else has to change:
+        # a log line gains a trace_id and becomes clickable through to the
+        # trace, and the trace becomes clickable through to the lines.
+        #
+        # Both arguments are load-bearing. set_logging_format=False keeps this
+        # service's JSON formatting: letting the instrumentor install a format
+        # string would replace it with a plain line. But injection is gated on
+        # that same flag, so turning it off also turns the ids off unless
+        # inject_trace_context says otherwise — which is how this silently does
+        # nothing if you only pass the first one.
+        from opentelemetry.instrumentation.logging import LoggingInstrumentor
+
+        LoggingInstrumentor().instrument(set_logging_format=False, inject_trace_context=True)
+
         if django:
             # The request span, with the traceparent Kong sent as its parent —
             # which is what makes a trace that starts at the gateway continue
